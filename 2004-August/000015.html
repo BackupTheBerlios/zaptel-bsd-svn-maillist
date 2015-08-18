@@ -1,0 +1,153 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Zaptel-bsd-svn] r19 - in trunk: wcfxs zaptel
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/zaptel-bsd-svn/2004-August/index.html" >
+   <LINK REL="made" HREF="mailto:zaptel-bsd-svn%40lists.berlios.de?Subject=Re%3A%20%5BZaptel-bsd-svn%5D%20r19%20-%20in%20trunk%3A%20wcfxs%20zaptel&In-Reply-To=%3C200408171257.i7HCvZNE031728%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000014.html">
+   <LINK REL="Next"  HREF="000016.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Zaptel-bsd-svn] r19 - in trunk: wcfxs zaptel</H1>
+    <B>Alexander Timoshenko at BerliOS</B> 
+    <A HREF="mailto:zaptel-bsd-svn%40lists.berlios.de?Subject=Re%3A%20%5BZaptel-bsd-svn%5D%20r19%20-%20in%20trunk%3A%20wcfxs%20zaptel&In-Reply-To=%3C200408171257.i7HCvZNE031728%40sheep.berlios.de%3E"
+       TITLE="[Zaptel-bsd-svn] r19 - in trunk: wcfxs zaptel">gonzo at sheep.berlios.de
+       </A><BR>
+    <I>Tue Aug 17 14:57:35 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000014.html">[Zaptel-bsd-svn] r18 - trunk/wcfxs
+</A></li>
+        <LI>Next message: <A HREF="000016.html">[Zaptel-bsd-svn] r20 - trunk/zaptel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15">[ date ]</a>
+              <a href="thread.html#15">[ thread ]</a>
+              <a href="subject.html#15">[ subject ]</a>
+              <a href="author.html#15">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: gonzo
+Date: 2004-08-17 14:57:34 +0200 (Tue, 17 Aug 2004)
+New Revision: 19
+
+Modified:
+   trunk/wcfxs/wcfxs.c
+   trunk/zaptel/zaptel.h
+Log:
+	o Add polarity reverse detection. Merged from linux version.
+
+
+Modified: trunk/wcfxs/wcfxs.c
+===================================================================
+--- trunk/wcfxs/wcfxs.c	2004-08-17 12:36:07 UTC (rev 18)
++++ trunk/wcfxs/wcfxs.c	2004-08-17 12:57:34 UTC (rev 19)
+@@ -167,8 +167,9 @@
+ #define FLAG_WRITE	1
+ #define FLAG_READ	2
+ 
+-#define RING_DEBOUNCE	64		/* Ringer Debounce (in ms) */
+-#define BATT_DEBOUNCE	64		/* Battery debounce (in ms) */
++#define RING_DEBOUNCE		64		/* Ringer Debounce (in ms) */
++#define BATT_DEBOUNCE		64		/* Battery debounce (in ms) */
++#define POLARITY_DEBOUNCE	64		/* Polarity debounce (in ms) */
+ #define BATT_THRESH		3		/* Anything under this is &quot;no battery&quot; */
+ 
+ #define OHT_TIMER		6000	/* How long after RING to retain OHT */
+@@ -233,6 +234,9 @@
+ 			int battdebounce[NUM_CARDS];
+ 			int nobatttimer[NUM_CARDS];
+ 			int battery[NUM_CARDS];
++			int lastpol[NUM_CARDS];
++			int polarity[NUM_CARDS];
++			int polaritydebounce[NUM_CARDS];
+ 		} fxo;
+ 		struct {
+ 			int oldrxhook[NUM_CARDS];
+@@ -1479,6 +1483,19 @@
+ 			wcfxs_generate_description(sc);
+ 		} else if (sc-&gt;mod.fxo.battery[card])
+ 			sc-&gt;mod.fxo.battdebounce[card] = BATT_DEBOUNCE;
++
++			if (sc-&gt;mod.fxo.lastpol[card] &gt;= 0) {
++				if (b &lt; 0) {
++					sc-&gt;mod.fxo.lastpol[card] = -1;
++					sc-&gt;mod.fxo.polaritydebounce[card] = POLARITY_DEBOUNCE;
++				}
++			} 
++			if (sc-&gt;mod.fxo.lastpol[card] &lt;= 0) {
++			if (b &gt; 0) {
++				sc-&gt;mod.fxo.lastpol[card] = 1;
++				sc-&gt;mod.fxo.polaritydebounce[card] = POLARITY_DEBOUNCE;
++			}
++               }
+ 	} else {
+ 		/* It's something else... */
+ 		sc-&gt;mod.fxo.battdebounce[card] = BATT_DEBOUNCE;
+@@ -1486,6 +1503,19 @@
+ 	if (sc-&gt;mod.fxo.battdebounce[card])
+ 		sc-&gt;mod.fxo.battdebounce[card]--;
+ 	
++	if (sc-&gt;mod.fxo.polaritydebounce[card]) {
++ 		sc-&gt;mod.fxo.polaritydebounce[card]--;
++		if (sc-&gt;mod.fxo.polaritydebounce[card] &lt; 1) {
++			if (sc-&gt;mod.fxo.lastpol[card] != sc-&gt;mod.fxo.polarity[card]) {
++				printf(&quot;Polarity reversed (%d -&gt; %d)\n&quot;, 
++				sc-&gt;mod.fxo.polarity[card], 
++				sc-&gt;mod.fxo.lastpol[card]);
++				if (sc-&gt;mod.fxo.polarity[card])
++				zt_qevent_lock(&amp;sc-&gt;chans[card], ZT_EVENT_POLARITY);
++ 				sc-&gt;mod.fxo.polarity[card] = sc-&gt;mod.fxo.lastpol[card];
++			}
++		}
++	}
+ }
+ 
+ static void wcfxs_proslic_check_hook(struct wcfxs_softc *sc, int card)
+
+Modified: trunk/zaptel/zaptel.h
+===================================================================
+--- trunk/zaptel/zaptel.h	2004-08-17 12:36:07 UTC (rev 18)
++++ trunk/zaptel/zaptel.h	2004-08-17 12:57:34 UTC (rev 19)
+@@ -969,6 +969,8 @@
+ /* Timer event -- ping ready */
+ #define ZT_EVENT_TIMER_PING 16
+ 
++/* Polarity reversal event */
++#define ZT_EVENT_POLARITY  17
+ 
+ #define ZT_EVENT_PULSEDIGIT (1 &lt;&lt; 16)   /* This is OR'd with the digit received */
+ #define ZT_EVENT_DTMFDIGIT  (1 &lt;&lt; 17)   /* Ditto for DTMF */
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000014.html">[Zaptel-bsd-svn] r18 - trunk/wcfxs
+</A></li>
+	<LI>Next message: <A HREF="000016.html">[Zaptel-bsd-svn] r20 - trunk/zaptel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#15">[ date ]</a>
+              <a href="thread.html#15">[ thread ]</a>
+              <a href="subject.html#15">[ subject ]</a>
+              <a href="author.html#15">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/zaptel-bsd-svn">More information about the Zaptel-bsd-svn
+mailing list</a><br>
+</body></html>

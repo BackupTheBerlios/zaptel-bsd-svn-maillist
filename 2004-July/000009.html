@@ -1,0 +1,262 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Zaptel-bsd-svn] r15 - in trunk: . wcfxo
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/zaptel-bsd-svn/2004-July/index.html" >
+   <LINK REL="made" HREF="mailto:zaptel-bsd-svn%40lists.berlios.de?Subject=Re%3A%20%5BZaptel-bsd-svn%5D%20r15%20-%20in%20trunk%3A%20.%20wcfxo&In-Reply-To=%3C200407231142.i6NBgMBo021139%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000008.html">
+   <LINK REL="Next"  HREF="000010.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Zaptel-bsd-svn] r15 - in trunk: . wcfxo</H1>
+    <B>Alexander Timoshenko at BerliOS</B> 
+    <A HREF="mailto:zaptel-bsd-svn%40lists.berlios.de?Subject=Re%3A%20%5BZaptel-bsd-svn%5D%20r15%20-%20in%20trunk%3A%20.%20wcfxo&In-Reply-To=%3C200407231142.i6NBgMBo021139%40sheep.berlios.de%3E"
+       TITLE="[Zaptel-bsd-svn] r15 - in trunk: . wcfxo">gonzo at sheep.berlios.de
+       </A><BR>
+    <I>Fri Jul 23 13:42:22 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000008.html">[Zaptel-bsd-svn] r14 - in trunk: . wcfxo wcfxs
+</A></li>
+        <LI>Next message: <A HREF="000010.html">[Zaptel-bsd-svn] r16 - in trunk: . wcfxs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#9">[ date ]</a>
+              <a href="thread.html#9">[ thread ]</a>
+              <a href="subject.html#9">[ subject ]</a>
+              <a href="author.html#9">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: gonzo
+Date: 2004-07-23 13:42:21 +0200 (Fri, 23 Jul 2004)
+New Revision: 15
+
+Modified:
+   trunk/ChangeLog
+   trunk/wcfxo/wcfxo.c
+Log:
+    o X101P power status displayin in cat /dev/wcfxo0
+        (poor man's /proc emulation)
+
+
+
+Modified: trunk/ChangeLog
+===================================================================
+--- trunk/ChangeLog	2004-07-22 15:24:15 UTC (rev 14)
++++ trunk/ChangeLog	2004-07-23 11:42:21 UTC (rev 15)
+@@ -1,3 +1,7 @@
++23/07/2004 Alexander Timoshenko &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/zaptel-bsd-svn">gonzo at portaone.com</A>&gt;
++	o X101P power status displayin in cat /dev/wcfxo0
++		(poor man's /proc emulation)
++
+ 22/07/2004 Alexander Timoshenko &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/zaptel-bsd-svn">gonzo at portaone.com</A>&gt;
+ 	o OpenBSD inetgration draft(zaptel module compiles and loads)
+ 	o sysctl tree destroy fix in wcfxs/wcfxo
+
+Modified: trunk/wcfxo/wcfxo.c
+===================================================================
+--- trunk/wcfxo/wcfxo.c	2004-07-22 15:24:15 UTC (rev 14)
++++ trunk/wcfxo/wcfxo.c	2004-07-23 11:42:21 UTC (rev 15)
+@@ -71,7 +71,7 @@
+ 
+ #define DEBUG 1
+ #define ZERO_BATT_RING 1
+-/* #define JAPAN 1 */
++#define JAPAN 1
+ #define WC_MAX_IFACES 128
+ #define WCFXO_MAX_PORTS 4
+ 
+@@ -127,6 +127,7 @@
+ #endif
+ 
+ 
++static char * card_configuration = 0;
+ 
+ /* devices list */
+ static struct wcfxo_desc wcx100p = { &quot;Wildcard X100P&quot;,
+@@ -250,18 +251,29 @@
+ static int	wcfxo_detach(device_t );
+ static void wcfxo_sysctl_init(void);
+ static void wcfxo_sysctl_destroy(void);
++void		wcfxo_generate_description(struct wcfxo_softc *sc);
+ 
+ /* sysctl stuff */
+ extern struct sysctl_oid * zt_root;
+ static struct sysctl_oid * wcfxo_root;
+ static struct sysctl_ctx_list wcfxo_clist;
+ 
++/* syscall handlers */
++d_open_t wcfxo_sys_open;
++d_close_t wcfxo_sys_close;
++d_read_t wcfxo_sys_read;
++
++
++
+ /* Character device entry points */
+ static struct cdevsw wcfxo_cdevsw = {
+ #if __FreeBSD_version &gt;= 502103
+ 	.d_version = D_VERSION,
+ #endif
+ 	.d_name =   &quot;wcfxo&quot;,
++	.d_open  =   wcfxo_sys_open,
++	.d_close =   wcfxo_sys_close,
++	.d_read  =   wcfxo_sys_read
+ };
+ 
+ static int debug = 0;
+@@ -327,8 +339,19 @@
+ 	return -1;
+ }
+ 
++void wcfxo_generate_description(struct wcfxo_softc *sc)
++{
++	if(!card_configuration)
++		card_configuration = malloc(80 + 40 +  25 + 20, M_DEVBUF, M_NOWAIT);
++	snprintf(card_configuration, 120 + 25, &quot;%s\n%s\n&quot;, 
++					sc-&gt;span.name, sc-&gt;span.desc);
++	snprintf(card_configuration, 120 + 25, 
++					&quot;%sPort #%d -- FXO [%s]\n&quot;,
++					card_configuration, 1, sc-&gt;span.alarms ? &quot;off&quot; : &quot;on&quot;);
++}
+ 
+ 
++
+ static int wcfxo_watchdog(struct zt_span *span, int event)
+ {
+ 	printf(&quot;FXO: Restarting DMA\n&quot;);
+@@ -1035,6 +1058,7 @@
+ 				(!sc-&gt;span.alarms)) {
+ 				sc-&gt;span.alarms = ZT_ALARM_RED;
+ 				zt_alarm_notify(&amp;sc-&gt;span);
++				wcfxo_generate_description(sc);
+ 			}
+ 		} else if (b == 0xf) {
+ 			if (!sc-&gt;battery &amp;&amp; !sc-&gt;battdebounce) {
+@@ -1056,6 +1080,7 @@
+ 				if (sc-&gt;span.alarms) {
+ 					sc-&gt;span.alarms = 0;
+ 					zt_alarm_notify(&amp;sc-&gt;span);
++					wcfxo_generate_description(sc);
+ 				}
+ 			} else if (sc-&gt;battery)
+ 				sc-&gt;battdebounce = BATT_DEBOUNCE;
+@@ -1081,6 +1106,7 @@
+ 		if(sc-&gt;span.alarms) {
+ 			sc-&gt;span.alarms = 0;
+ 			zt_alarm_notify(&amp;sc-&gt;span);
++			wcfxo_generate_description(sc);
+ 		}
+ 	}
+ 
+@@ -1272,9 +1298,10 @@
+ 		error = EIO;
+ 		goto fail;
+ 	}
+-	/* wcfxo_disable_interrupts(sc); */
+ 
+ 	wcfxo_set_daa_mode(sc);
++	wcfxo_generate_description(sc);
++
+ 	printf(&quot;Found a Wildcard FXO: %s\n&quot;, sc-&gt;variety);
+ 	printf(&quot;ZapTel device loaded.\n&quot;);
+ 
+@@ -1350,6 +1377,11 @@
+ 		if(sc-&gt;d)
+ 			destroy_dev(sc-&gt;d);
+ 
++		if(card_configuration)
++		{
++			free(card_configuration, M_DEVBUF);
++			card_configuration = 0;
++		}
+ 		printf(&quot;ZapTel detach!\n&quot;);
+ 	}
+ 	return (0);
+@@ -1388,6 +1420,54 @@
+ 	return (0);
+ }
+ 
++/* 
++ * syscall routines 
++ * We will use them to emulate Linux /proc behaviour --
++ * they will give detailed info about card installed
++ */ 
++#if __FreeBSD_version &lt; 500000
++int wcfxo_sys_open(dev_t dev, int flag, int devtype, struct proc *threadp)
++#else
++int wcfxo_sys_open(struct cdev * dev, int flag, int mode, struct thread *threadp)
++#endif
++{
++	return 0;
++}
++
++#if __FreeBSD_version &lt; 500000
++int wcfxo_sys_close(dev_t dev, int flags, int fmt, struct proc *threadp)
++#else
++int wcfxo_sys_close(struct cdev * dev, int flags, int fmt, struct thread *threadp)
++#endif
++{
++	return 0;
++}
++
++#if __FreeBSD_version &lt; 500000
++int
++wcfxo_sys_read(dev_t dev, struct uio *uio, int flag)
++#else
++int
++wcfxo_sys_read(struct cdev *dev, struct uio *uio, int flag)
++#endif
++{
++	int size;
++	/* end of file */
++	if(uio-&gt;uio_offset &lt; 0)
++		return -1;
++
++	if(!card_configuration)
++		return 0;
++	
++    if(uio-&gt;uio_offset &gt;= strlen(card_configuration))
++		return 0;
++
++	size = MIN(uio-&gt;uio_resid, strlen(card_configuration) - uio-&gt;uio_offset);
++	return uiomove(card_configuration +  uio-&gt;uio_offset, size, uio);
++}
++
++
++
+ static int
+ wcfxo_load(module_t mod, int cmd, void *arg)
+ {
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000008.html">[Zaptel-bsd-svn] r14 - in trunk: . wcfxo wcfxs
+</A></li>
+	<LI>Next message: <A HREF="000010.html">[Zaptel-bsd-svn] r16 - in trunk: . wcfxs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#9">[ date ]</a>
+              <a href="thread.html#9">[ thread ]</a>
+              <a href="subject.html#9">[ subject ]</a>
+              <a href="author.html#9">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/zaptel-bsd-svn">More information about the Zaptel-bsd-svn
+mailing list</a><br>
+</body></html>

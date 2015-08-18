@@ -1,0 +1,688 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Zaptel-bsd-svn] r13 - trunk/zaptel
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/zaptel-bsd-svn/2004-July/index.html" >
+   <LINK REL="made" HREF="mailto:zaptel-bsd-svn%40lists.berlios.de?Subject=Re%3A%20%5BZaptel-bsd-svn%5D%20r13%20-%20trunk/zaptel&In-Reply-To=%3C200407221509.i6MF9IgS011563%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000006.html">
+   <LINK REL="Next"  HREF="000008.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Zaptel-bsd-svn] r13 - trunk/zaptel</H1>
+    <B>Alexander Timoshenko at BerliOS</B> 
+    <A HREF="mailto:zaptel-bsd-svn%40lists.berlios.de?Subject=Re%3A%20%5BZaptel-bsd-svn%5D%20r13%20-%20trunk/zaptel&In-Reply-To=%3C200407221509.i6MF9IgS011563%40sheep.berlios.de%3E"
+       TITLE="[Zaptel-bsd-svn] r13 - trunk/zaptel">gonzo at sheep.berlios.de
+       </A><BR>
+    <I>Thu Jul 22 17:09:18 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000006.html">[Zaptel-bsd-svn] r12 - in trunk: . test
+</A></li>
+        <LI>Next message: <A HREF="000008.html">[Zaptel-bsd-svn] r14 - in trunk: . wcfxo wcfxs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7">[ date ]</a>
+              <a href="thread.html#7">[ thread ]</a>
+              <a href="subject.html#7">[ subject ]</a>
+              <a href="author.html#7">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: gonzo
+Date: 2004-07-22 17:09:18 +0200 (Thu, 22 Jul 2004)
+New Revision: 13
+
+Added:
+   trunk/zaptel/Makefile.openbsd
+   trunk/zaptel/install-dev.sh
+   trunk/zaptel/os.h
+Modified:
+   trunk/zaptel/zaptel.c
+   trunk/zaptel/zaptel.h
+Log:
+	o First draft of OpenBSD 3.5 support
+	o OS-dependent defines moved to os.h
+
+
+
+Added: trunk/zaptel/Makefile.openbsd
+===================================================================
+--- trunk/zaptel/Makefile.openbsd	2004-07-21 16:43:14 UTC (rev 12)
++++ trunk/zaptel/Makefile.openbsd	2004-07-22 15:09:18 UTC (rev 13)
+@@ -0,0 +1,29 @@
++KSRCS=zaptel.c
++KOBJS=zaptel.o
++
++MODOBJ=mod_zaptel.o
++
++KMOD=mod_zaptel
++CFLAGS+= -D_KERNEL -I/sys
++
++all:	tones.h $(MODOBJ)
++
++tones.h: gendigits.c
++	${CC} ${CFLAGS} -o gendigits gendigits.c -lm
++	./gendigits
++
++clean:
++	rm -f $(OBJS) $(KOBJS) $(MODOBJ) $(KMOD)
++
++load:
++	modload -o $(KMOD) -e$(KMOD) $(MODOBJ)
++
++unload:
++	modunload -n $(KMOD)
++
++$(MODOBJ): $(OBJS) $(KOBJS)
++	$(LD) -r -o $(MODOBJ) $(OBJS) $(KOBJS)
++
++#
++# EOF -- This file has not been truncated
++#
+
+Added: trunk/zaptel/install-dev.sh
+===================================================================
+--- trunk/zaptel/install-dev.sh	2004-07-21 16:43:14 UTC (rev 12)
++++ trunk/zaptel/install-dev.sh	2004-07-22 15:09:18 UTC (rev 13)
+@@ -0,0 +1,9 @@
++#!/bin/sh
++MAJOR=`modstat -n zaptel | tail -1 | awk '{print $3}'`
++mkdir /dev/zap
++mknod -m 644 /dev/zap/ctl c $MAJOR 0
++mknod -m 644 /dev/zap/timer c $MAJOR 253
++mknod -m 644 /dev/zap/channel c $MAJOR 254
++mknod -m 644 /dev/zap/pseudo c $MAJOR 255
++echo &quot;created devicec /dev/zap/*, major number $MAJOR&quot;
++ls -l /dev/zap/*
+
+
+Property changes on: trunk/zaptel/install-dev.sh
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Added: trunk/zaptel/os.h
+===================================================================
+--- trunk/zaptel/os.h	2004-07-21 16:43:14 UTC (rev 12)
++++ trunk/zaptel/os.h	2004-07-22 15:09:18 UTC (rev 13)
+@@ -0,0 +1,87 @@
++#ifndef OS_H
++#define OS_H
++
++#ifdef _KERNEL
++
++/* Here is all the os-dependend structures definitions */
++#ifdef __OpenBSD__
++#include &lt;sys/exec.h&gt;
++#include &lt;sys/lkm.h&gt;
++#endif
++
++#ifdef __FreeBSD__
++#define timer_t struct callout
++#else
++#define timer_t struct timeout 
++#endif
++
++/* Locking stuff */
++#ifdef __FreeBSD__
++#	if __FreeBSD_version &lt; 500000
++#		define lock_t	struct lock
++#		define ZAP_LOCK(_lock) simple_lock(&amp;(_lock))
++#		define ZAP_UNLOCK(_lock) simple_unlock(&amp;(_lock))
++#		define ZAP_LOCK_INIT(_lock, name) simple_lock_init(&amp;(_lock))
++#		define ZAP_LOCK_DESTROY(_lock) do{}while(0)
++	/* lockmgr locks */
++#		define	ZAP_MGR_LOCK(_lock, flags) lockmgr(&amp;(_lock), \
++			flags, 0, curproc)
++#		define	ZAP_MGR_DESTROY_LOCK(_lock) do{}while(0)
++#	else
++#		define lock_t	struct mtx
++#		define ZAP_LOCK(_lock)           	mtx_lock(&amp;(_lock))
++#		define ZAP_UNLOCK(_lock)         	mtx_unlock(&amp;(_lock))
++#		define ZAP_LOCK_INIT(_lock, name)	mtx_init(&amp;(_lock), \
++							name, NULL, MTX_DEF)
++#		define ZAP_LOCK_DESTROY(_lock)		mtx_destroy(&amp;(_lock))
++		/* lockmgr locks */
++#		define	ZAP_MGR_LOCK(_lock, flags) lockmgr(&amp;(_lock), \
++							flags, 0, curthread); 
++#		define	ZAP_MGR_DESTROY_LOCK(_lock) lockdestroy(&amp;(_lock))
++#	endif
++#else
++#	define lock_t	struct simplelock
++#	define ZAP_LOCK(_lock) simple_lock(&amp;(_lock))
++#	define ZAP_UNLOCK(_lock) simple_unlock(&amp;(_lock))
++#	define ZAP_LOCK_INIT(_lock, name) simple_lock_init(&amp;(_lock))
++#	define ZAP_LOCK_DESTROY(_lock) do{}while(0)
++	/* lockmgr locks */
++#	define	ZAP_MGR_LOCK(_lock, flags) lockmgr(&amp;(_lock), \
++		flags, 0, curproc)
++#	define	ZAP_MGR_DESTROY_LOCK(_lock) do{}while(0)
++#endif
++
++/* fileops */
++#ifdef __FreeBSD__
++#if __FreeBSD_version &lt; 500000
++typedef int fo_rdwr_t(struct file *fp, struct uio *uio,
++			struct ucred *cred, int flags,
++			struct proc *p);
++typedef int fo_ioctl_t(struct file *fp, u_long com,
++			caddr_t data, struct proc *p);
++typedef int fo_poll_t(struct file *fp, int events,
++			struct ucred *cred, struct proc *p);
++typedef int fo_kqfilter_t(struct file *fp, struct knote *kn);
++typedef int fo_stat_t(struct file *fp, struct stat *sb,
++			struct proc *p);
++typedef int fo_close_t(struct file *fp, struct proc *p);
++#	endif
++#else /* OpenBSD */
++typedef int     fo_rdwr_t(struct file *, off_t *, struct uio *, struct ucred *);
++typedef int     fo_ioctl_t(struct file *, u_long, caddr_t, struct proc *p);
++typedef int     fo_poll_t(struct file *, int, struct proc *);
++typedef int     fo_kqfilter_t(struct file *, struct knote *);
++typedef int     fo_stat_t(struct file *, struct stat *, struct proc *);
++typedef int     fo_close_t(struct file *, struct proc *);
++#endif /* def __FreeBSD__ */
++
++/* Module stuff */
++#ifdef __OpenBSD__
++#define MOD_LOAD 		LKM_E_LOAD
++#define MOD_UNLOAD		LKM_E_UNLOAD
++#endif
++
++
++
++#endif /* _KERNEL */
++#endif /* OS_H */
+
+Modified: trunk/zaptel/zaptel.c
+===================================================================
+--- trunk/zaptel/zaptel.c	2004-07-21 16:43:14 UTC (rev 12)
++++ trunk/zaptel/zaptel.c	2004-07-22 15:09:18 UTC (rev 13)
+@@ -106,7 +106,10 @@
+ #include &lt;sys/systm.h&gt;
+ #include &lt;sys/malloc.h&gt;
+ #include &lt;sys/kernel.h&gt;
++#ifdef __FreeBSD__
+ #include &lt;sys/bus.h&gt;
++#include &lt;sys/module.h&gt;
++#endif
+ #include &lt;sys/lock.h&gt;
+ #include &lt;sys/file.h&gt;
+ #include &lt;sys/filedesc.h&gt;
+@@ -132,26 +135,40 @@
+ /* arith.h *must* be after  zaptel.h */
+ #include &quot;arith.h&quot;
+ 
+-#include &lt;sys/module.h&gt;
+-MODULE_VERSION(zaptel, 1);
+ 
++#ifdef MALLOC_DEFINE
+ MALLOC_DEFINE(M_ZAP, &quot;zaptel&quot;, &quot;ZapTel interface data structures&quot;);
++#else
++#define M_ZAP M_DEVBUF
++#endif
+ 
++#ifdef __FreeBSD__
++
++MODULE_VERSION(zaptel, 1);
+ static devclass_t zt_devclass;
++d_open_t		ztopen;
+ 
+-static int pulse_pause = 800;
+-static int pulse_make = 60;
+-static int pulse_break = 40;
+-
+-d_open_t		zt_open;
+-
+ #if __FreeBSD_version &lt; 500000
+ /* PROC_LOCK stuff */
+ #define PROC_LOCK(p)    {};
+ #define PROC_UNLOCK(p)  {};
+ #endif
+ 
+-#if __FreeBSD_version &gt;= 500000
++static struct cdevsw zt_devsw = {
++#if __FreeBSD_version &gt;= 502103
++		.d_version = D_VERSION,
++#endif
++		.d_open			= ztopen,
++		.d_name			= &quot;zaptel&quot;,
++		.d_maj			= ZT_MAJOR
++};
++
++
++#else /* not FreeBSD */
++cdev_decl(zt);
++static struct cdevsw zt_devsw = cdev_fd_init(1, zt);
++#endif
++
+ fo_close_t			zt_close;
+ fo_ioctl_t			zt_ioctl;
+ fo_rdwr_t			zt_read;
+@@ -159,38 +176,21 @@
+ fo_poll_t			zt_poll;
+ fo_stat_t			zt_stat;
+ fo_kqfilter_t		zt_kqfilter;
+-#else
+-static int zt_close __P((struct file *fp, struct proc *p));
+-static int zt_ioctl __P((struct file *fp, u_long com,
+-							caddr_t data, struct proc *p));
+-static int zt_read  __P((struct file *fp, struct uio *uio,
+-					    struct ucred *cred, int flags,
+-					    struct proc *p));
+-static int zt_write __P((struct file *fp, struct uio *uio,
+-					    struct ucred *cred, int flags,
+-					    struct proc *p));
+-static int zt_poll	__P((struct file *fp, int events,
+-					    struct ucred *cred, struct proc *p));
+ 
+-static int zt_stat  __P((struct file * fp, struct stat *sb, 
+-						struct proc * p));
+-static int zt_kqfilter __P((struct file *fp,
+-						struct knote *kn));
+ 
+-#endif
++static int pulse_pause = 800;
++static int pulse_make = 60;
++static int pulse_break = 40;
+ 
++static void pulse_timer(void *);
++
++
++
++#ifdef __FreeBSD__
+ /* sysctl stuff */
+ static struct sysctl_oid * zt_root, * pulse_root;
+ static struct sysctl_ctx_list zt_clist;
+-
+-static struct cdevsw zt_devsw = {
+-#if __FreeBSD_version &gt;= 502103
+-		.d_version = D_VERSION,
+ #endif
+-		.d_open			= zt_open,
+-		.d_name			= &quot;zaptel&quot;,
+-		.d_maj			= ZT_MAJOR
+-};
+ 
+ static struct fileops zt_fileops = {
+ 	.fo_close = zt_close,
+@@ -541,6 +541,7 @@
+ void zt_sysctl_init()
+ {
+ 
++#ifdef __FreeBSD__
+ 	sysctl_ctx_init(&amp;zt_clist);
+ 
+ 	zt_root = SYSCTL_ADD_NODE(&amp;zt_clist,
+@@ -573,11 +574,14 @@
+ 	SYSCTL_ADD_INT(&amp;zt_clist, SYSCTL_CHILDREN(pulse_root),
+ 		OID_AUTO, &quot;pause&quot;, CTLFLAG_RW, &amp;pulse_pause, 0, 
+ 		&quot;pause between series(milliseconds)&quot;);
++#endif
+ }
+ 
+ void zt_sysctl_destroy()
+ {
++#ifdef __FreeBSD__
+ 	sysctl_ctx_free(&amp;zt_clist);
++#endif
+ }
+ 
+ 
+@@ -874,7 +878,9 @@
+ #endif
+ 
+ 	/* callout_drain(&amp;chan-&gt;outbound_pulse_timer); */
++#ifdef __FreeBSD__
+ 	callout_stop(&amp;chan-&gt;outbound_pulse_timer); 
++#endif
+ 	zt_reallocbufs(chan, 0, 0); 
+ 	ZAP_LOCK(chan-&gt;lock);
+ #ifdef CONFIG_ZAPATA_PPP
+@@ -2042,11 +2048,15 @@
+ 	chan-&gt;current_pulse = 0;
+ 	chan-&gt;pulse_state = SENDING_PAUSE;
+ 
++#ifdef __FreeBSD__
+ #if __FreeBSD_version &lt; 500000
+ 	callout_init(&amp;chan-&gt;outbound_pulse_timer);
+ #else
+ 	callout_init(&amp;chan-&gt;outbound_pulse_timer, CALLOUT_MPSAFE);
+ #endif
++#else
++	timeout_set(&amp;chan-&gt;outbound_pulse_timer, pulse_timer, chan);
++#endif
+ 
+ 	if (chan-&gt;curzone) {
+ 		/* Take cadence from tone zone */
+@@ -2191,7 +2201,7 @@
+ 		free(pseudo, M_ZAP);
+ 		return NULL;
+ 	}
+-	sprintf(pseudo-&gt;name, &quot;Pseudo/%d&quot;, pseudo-&gt;channo);
++	snprintf(pseudo-&gt;name, 40, &quot;Pseudo/%d&quot;, pseudo-&gt;channo);
+ 	return pseudo;	
+ }
+ 
+@@ -2207,9 +2217,9 @@
+ 	
+ 
+ #if __FreeBSD_version &lt; 500000
+-int zt_open(dev_t dev, int flag, int devtype, struct proc *threadp)
++int ztopen(dev_t dev, int flag, int devtype, struct proc *threadp)
+ #else
+-int zt_open(struct cdev * dev, int flag, int mode, struct thread *threadp)
++int ztopen(struct cdev * dev, int flag, int mode, struct thread *threadp)
+ #endif
+ {
+ 	int unit = minor(dev);
+@@ -2257,6 +2267,7 @@
+ 
+ 
+ 
++#ifdef __FreeBSD__
+ #if __FreeBSD_version &lt; 500000
+ int zt_read(struct file * fp, struct uio * uio, struct ucred * active_cred, 
+ 	int flags, struct proc * threadp)
+@@ -2264,6 +2275,10 @@
+ int zt_read(struct file * fp, struct uio * uio, struct ucred * active_cred, 
+ 	int flags, struct thread * threadp)
+ #endif
++#else /* not FreeBSD */
++int zt_read(struct file * fp, off_t * off, struct uio * uio, 
++	struct ucred * active_cred)
++#endif
+ {
+ 	int unit = fp_tounit(fp);
+ 	struct zt_chan *chan;
+@@ -2295,6 +2310,7 @@
+ 	return zt_chan_read(uio, unit);
+ }
+ 
++#ifdef __FreeBSD__
+ #if __FreeBSD_version &lt; 500000
+ int zt_write(struct file * fp, struct uio * uio, struct ucred * active_cred, 
+ 	int flags, struct proc * threadp)
+@@ -2302,6 +2318,10 @@
+ int zt_write(struct file * fp, struct uio * uio, struct ucred * active_cred, 
+ 	int flags, struct thread * threadp)
+ #endif
++#else /* ! FreeBSD */
++int zt_write(struct file * fp, off_t * off, struct uio * uio, 
++	struct ucred * active_cred)
++#endif
+ {
+ 	int unit = fp_tounit(fp);
+ 	struct zt_chan *chan;
+@@ -2550,8 +2570,12 @@
+ 			/* 0.8s */
+ 			zt_sethook(chan, ZT_OFFHOOK);
+ 			chan-&gt;pulse_state = SENDING_PAUSE;
++#ifdef __FreeBSD__
+ 			callout_reset(&amp;chan-&gt;outbound_pulse_timer, (pulse_pause*hz)/1000, 
+ 				pulse_timer, arg);
++#else
++			timeout_add(&amp;chan-&gt;outbound_pulse_timer, (pulse_pause*hz)/1000 + 1);
++#endif
+ 			return;
+ 		}
+ 	}
+@@ -2572,8 +2596,12 @@
+ 				{
+ 					chan-&gt;current_pulse = 0;
+ 					chan-&gt;pulse_state = SENDING_PAUSE;
++#ifdef __FreeBSD__
+ 					callout_reset(&amp;chan-&gt;outbound_pulse_timer, (500*hz)/1000, 
+ 						pulse_timer, arg);
++#else
++					timeout_add(&amp;chan-&gt;outbound_pulse_timer, (500*hz)/1000 + 1);
++#endif
+ 					return;
+ 				}
+ 				
+@@ -2589,8 +2617,12 @@
+ 
+ 		/* 0.06s - default */
+ 		chan-&gt;pulse_state = SENDING_PULSE;
++#ifdef __FreeBSD__
+ 		callout_reset(&amp;chan-&gt;outbound_pulse_timer, (pulse_make*hz)/1000 + 1, 
+ 				  pulse_timer, arg);
++#else
++		timeout_add(&amp;chan-&gt;outbound_pulse_timer, (pulse_make*hz)/1000 + 1);
++#endif
+ 	} else
+ 	if(chan-&gt;pulse_state == SENDING_PULSE)
+ 	{
+@@ -2601,8 +2633,14 @@
+ 			chan-&gt;current_pulse--;
+ 
+ 		zt_sethook(chan, ZT_OFFHOOK);
++
++#ifdef __FreeBSD__
+ 		callout_reset(&amp;chan-&gt;outbound_pulse_timer, (pulse_break*hz)/1000 + 1, 
+ 					  pulse_timer, arg);
++#else
++		timeout_add(&amp;chan-&gt;outbound_pulse_timer, (pulse_break*hz)/1000 + 1);
++#endif
++
+ 	} 
+ 
+ }
+@@ -2733,8 +2771,12 @@
+ 
+ 	if(chan-&gt;digitmode == DIGIT_MODE_PULSE)
+ 	{
++#ifdef __FreeBSD__
+ 		callout_reset(&amp;chan-&gt;outbound_pulse_timer, (pulse_pause*hz)/1000 + 1, 
+ 			pulse_timer, chan);
++#else
++		timeout_add(&amp;chan-&gt;outbound_pulse_timer, (pulse_pause*hz)/1000 + 1);
++#endif
+ 	}
+ }
+ 
+@@ -3527,7 +3569,7 @@
+ 			break;
+ 
+ 		case ZT_DIAL_OP_REPLACE:
+-			strcpy(chan-&gt;txdialbuf, tdo.dialstr);
++			strncpy(chan-&gt;txdialbuf, tdo.dialstr, ZT_MAX_DTMF_BUF);
+ 			chan-&gt;dialing = 1;
+ 			__do_dial(chan);
+ 			break;
+@@ -5891,6 +5933,7 @@
+ 	return(ret);  /* return what we found */
+ }
+ 
++#ifdef __FreeBSD__
+ #if __FreeBSD_version &lt; 500000
+ int zt_poll(struct file * fp, int events, 
+ 			struct ucred *active_ucred, struct proc *p)
+@@ -5898,6 +5941,9 @@
+ int zt_poll(struct file * fp, int events, 
+ 			struct ucred *active_ucred, struct thread *t)
+ #endif
++#else /* not FreeBSD */
++int zt_poll(struct file * fp, int events, struct proc * p)
++#endif
+ {
+ 	int unit = fp_tounit(fp);
+ 	struct zt_chan * chan;
+@@ -6326,20 +6372,26 @@
+ 
+ #endif
+ 
++#ifdef __FreeBSD__
+ static int
+ ztdev_load(module_t mod, int cmd, void *arg)
++#else
++static int
++ztdev_load( lkmtp, cmd)
++struct lkm_table        *lkmtp;
++int                     cmd;
++#endif
+ {
+ 	int  err = 0;
+ 	int x;
+ 
+-
+-
+ 	switch (cmd) {
+ 	case MOD_LOAD:
+ 		
+ 		zt_sysctl_init();
+ 		/* Do any initialization that you should do with the kernel */
+ 		/* if we make it to here, print copyright on console*/
++#ifdef __FreeBSD__
+ 		dev_ctl = make_dev(&amp;zt_devsw, 0, UID_ROOT, GID_WHEEL, 0664, 
+ 				   &quot;zap/ctl&quot;);
+ 		dev_timer = make_dev(&amp;zt_devsw, ZAP_TIMER_MINOR, UID_ROOT, 
+@@ -6348,20 +6400,18 @@
+ 					   GID_WHEEL, 0664, &quot;zap/channel&quot;);
+ 		dev_pseudo = make_dev(&amp;zt_devsw, ZAP_PSEUDO_MINOR, UID_ROOT, 
+ 					  GID_WHEEL, 0664, &quot;zap/pseudo&quot;);
++#endif
+ 
+ 		printf(&quot;Zapata Telephony Interface Registered on major %d\n&quot;, 
+ 			   ZT_MAJOR);
+ 
++#ifdef __FreeBSD__
+ 		zt_devclass = devclass_find(&quot;zaptel&quot;);
++#endif
+ 		zt_conv_init();
+ 		tone_zone_init();
+ 		fasthdlc_precalc();
+ 		rotate_sums();
+-		/*
+-		bzero(&amp;zt_timer_sc, sizeof(struct zt_timer_softc));
+-		bzero(&amp;zt_pseudo_chan_sc, sizeof(struct zt_chan_softc));
+-		bzero(&amp;zt_chan_sc, sizeof(struct zt_chan_softc));
+-		*/
+ 
+ 		bzero(chans, sizeof(chans));
+ 		bzero(spans, sizeof(spans));
+@@ -6387,10 +6437,12 @@
+ 		ZAP_MGR_DESTROY_LOCK(chan_lock);
+ 		ZAP_MGR_DESTROY_LOCK(zone_lock);
+ 		ZAP_LOCK_DESTROY(zaptimerlock);
++#ifdef __FreeBSD__
+ 		destroy_dev(dev_ctl);
+ 		destroy_dev(dev_pseudo);
+ 		destroy_dev(dev_timer);
+ 		destroy_dev(dev_channel);
++#endif
+ 		break;		  /* Success*/
+ 
+ 	default:	/* we only understand load/unload*/
+@@ -6401,4 +6453,25 @@
+ 	return(err);
+ }
+ 
++#ifdef __FreeBSD__
+ DEV_MODULE(ztdev, ztdev_load, NULL);
++#endif
++
++#ifdef __OpenBSD__
++
++MOD_DEV(&quot;zaptel&quot;, LM_DT_CHAR, -1, &amp;zt_devsw)
++
++/*
++ * Our external entry point. 
++ */
++
++int
++mod_zaptel(lkmtp, cmd, ver)
++        struct lkm_table *lkmtp;
++        int cmd;
++        int ver;
++{
++	DISPATCH(lkmtp, cmd, ver, ztdev_load, ztdev_load, lkm_nofunc)
++}
++
++#endif
+
+Modified: trunk/zaptel/zaptel.h
+===================================================================
+--- trunk/zaptel/zaptel.h	2004-07-21 16:43:14 UTC (rev 12)
++++ trunk/zaptel/zaptel.h	2004-07-22 15:09:18 UTC (rev 13)
+@@ -34,6 +34,8 @@
+ #if !defined(_ZAPTEL_H)
+ #define _ZAPTEL_H
+ 
++#include &quot;os.h&quot;
++
+ #ifdef _KERNEL
+ #include &lt;sys/select.h&gt;
+ #include &lt;sys/param.h&gt;
+@@ -49,30 +51,9 @@
+ #include &quot;fasthdlc.h&quot;
+ #endif /* _KERNEL */
+ 
+-/* Locking stuff */
+-#if __FreeBSD_version &lt; 500000
+-#define lock_t	struct lock
+-#define ZAP_LOCK(_lock) simple_lock(&amp;(_lock))
+-#define ZAP_UNLOCK(_lock) simple_unlock(&amp;(_lock))
+-#define ZAP_LOCK_INIT(_lock, name) simple_lock_init(&amp;(_lock))
+-#define ZAP_LOCK_DESTROY(_lock) do{}while(0)
+-/* lockmgr locks */
+-#define	ZAP_MGR_LOCK(_lock, flags) lockmgr(&amp;(_lock), flags, 0, curproc)
+-#define	ZAP_MGR_DESTROY_LOCK(_lock) do{}while(0)
+-#else
+-#define lock_t	struct mtx
+-#define ZAP_LOCK(_lock)           mtx_lock(&amp;(_lock))
+-#define ZAP_UNLOCK(_lock)         mtx_unlock(&amp;(_lock))
+-#define ZAP_LOCK_INIT(_lock, name)	mtx_init(&amp;(_lock), name, NULL, MTX_DEF)
+-#define ZAP_LOCK_DESTROY(_lock)		mtx_destroy(&amp;(_lock))
+-/* lockmgr locks */
+-#define	ZAP_MGR_LOCK(_lock, flags) lockmgr(&amp;(_lock), flags, 0, curthread); 
+-#define	ZAP_MGR_DESTROY_LOCK(_lock) lockdestroy(&amp;(_lock))
+-#endif
+ 
+ 
+ 
+-
+ /* #define wait_queue_head_t void * */
+ 
+ /* Default chunk size for conferences and such -- static right now, might make
+@@ -595,7 +576,7 @@
+ 	unsigned char pulses[ZT_MAX_PULSE_QUEUE];
+ 	unsigned char current_pulse;
+ 	int	pulse_enqueued;
+-	struct callout	outbound_pulse_timer;
++	timer_t	outbound_pulse_timer;
+ 	int	pulse_state;
+ };
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000006.html">[Zaptel-bsd-svn] r12 - in trunk: . test
+</A></li>
+	<LI>Next message: <A HREF="000008.html">[Zaptel-bsd-svn] r14 - in trunk: . wcfxo wcfxs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#7">[ date ]</a>
+              <a href="thread.html#7">[ thread ]</a>
+              <a href="subject.html#7">[ subject ]</a>
+              <a href="author.html#7">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/zaptel-bsd-svn">More information about the Zaptel-bsd-svn
+mailing list</a><br>
+</body></html>

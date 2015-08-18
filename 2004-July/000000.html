@@ -1,0 +1,151 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Zaptel-bsd-svn] r7 - in trunk: . zaptel
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/zaptel-bsd-svn/2004-July/index.html" >
+   <LINK REL="made" HREF="mailto:zaptel-bsd-svn%40lists.berlios.de?Subject=Re%3A%20%5BZaptel-bsd-svn%5D%20r7%20-%20in%20trunk%3A%20.%20zaptel&In-Reply-To=%3C200407191539.i6JFdV5n030187%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="000001.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Zaptel-bsd-svn] r7 - in trunk: . zaptel</H1>
+    <B>Alexander Timoshenko at BerliOS</B> 
+    <A HREF="mailto:zaptel-bsd-svn%40lists.berlios.de?Subject=Re%3A%20%5BZaptel-bsd-svn%5D%20r7%20-%20in%20trunk%3A%20.%20zaptel&In-Reply-To=%3C200407191539.i6JFdV5n030187%40sheep.berlios.de%3E"
+       TITLE="[Zaptel-bsd-svn] r7 - in trunk: . zaptel">gonzo at sheep.berlios.de
+       </A><BR>
+    <I>Mon Jul 19 17:39:31 CEST 2004</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="000001.html">[Zaptel-bsd-svn] r7 - in trunk: . zaptel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#0">[ date ]</a>
+              <a href="thread.html#0">[ thread ]</a>
+              <a href="subject.html#0">[ subject ]</a>
+              <a href="author.html#0">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: gonzo
+Date: 2004-07-19 17:39:31 +0200 (Mon, 19 Jul 2004)
+New Revision: 7
+
+Modified:
+   trunk/ChangeLog
+   trunk/zaptel/zaptel.c
+Log:
+    o f_stat/f_kqfilter stubs routines (absence causes
+        kernel panic on fstat() call, which is used in
+        libc_r)
+
+
+Modified: trunk/ChangeLog
+===================================================================
+--- trunk/ChangeLog	2004-07-18 19:12:36 UTC (rev 6)
++++ trunk/ChangeLog	2004-07-19 15:39:31 UTC (rev 7)
+@@ -1,3 +1,8 @@
++19/07/2004 Alexander Timoshenko &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/zaptel-bsd-svn">gonzo at portaone.com</A>&gt;
++    o f_stat/f_kqfilter stubs routines (absence causes
++        kernel panic on fstat() call, which is used in
++        libc_r)
++
+ 09/07/2004 Alexander Timoshenko &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/zaptel-bsd-svn">gonzo at portaone.com</A>&gt;
+     o ztdummy driver (patch contributed by Chris Stenton &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/zaptel-bsd-svn">jacs at gnome.co.uk</A>&gt;)
+     o zttest app (patch contributed by Chris Stenton &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/zaptel-bsd-svn">jacs at gnome.co.uk</A>&gt;)
+
+Modified: trunk/zaptel/zaptel.c
+===================================================================
+--- trunk/zaptel/zaptel.c	2004-07-18 19:12:36 UTC (rev 6)
++++ trunk/zaptel/zaptel.c	2004-07-19 15:39:31 UTC (rev 7)
+@@ -116,6 +116,7 @@
+ #include &lt;sys/vnode.h&gt;
+ #include &lt;net/ppp_defs.h&gt;
+ #include &lt;sys/conf.h&gt;
++#include &lt;sys/stat.h&gt;
+ 
+ #include &lt;sys/sysctl.h&gt;
+ 
+@@ -156,6 +157,8 @@
+ fo_rdwr_t			zt_read;
+ fo_rdwr_t			zt_write;
+ fo_poll_t			zt_poll;
++fo_stat_t			zt_stat;
++fo_kqfilter_t		zt_kqfilter;
+ #else
+ static int zt_close __P((struct file *fp, struct proc *p));
+ static int zt_ioctl __P((struct file *fp, u_long com,
+@@ -189,6 +192,8 @@
+ 	.fo_read = zt_read,
+ 	.fo_write = zt_write,
+ 	.fo_poll =  zt_poll,
++	.fo_stat = zt_stat,
++	.fo_kqfilter = zt_kqfilter
+ };
+ 
+ 
+@@ -2719,8 +2724,33 @@
+ 	}
+ }
+ 
++#if __FreeBSD_version &lt; 500000
++int zt_stat(struct file * fp, struct stat *sb, 
++		struct ucred * active_cred, struct proc * td)
++#else
++int zt_stat(struct file * fp, struct stat *sb, 
++		struct ucred * active_cred, struct thread * td)
++#endif
++{
++	bzero(sb, sizeof(*sb));
++	sb-&gt;st_mode = S_IFCHR;
++	/*
++	* Left as 0: st_dev, st_ino, st_nlink, st_rdev, st_flags, st_gen.
++	* XXX (st_dev, st_ino) should be unique.
++	*/
++	return (0);
++}
+ 
++/*
++ * Stub for fo_kqfilter
++ *
++ */
++int zt_kqfilter(struct file *fp, struct knote *kn)
++{
++	return EINVAL;
++}
+ 
++
+ #if __FreeBSD_version &lt; 500000
+ int zt_close(struct file * fp, struct proc *p)
+ #else
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="000001.html">[Zaptel-bsd-svn] r7 - in trunk: . zaptel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#0">[ date ]</a>
+              <a href="thread.html#0">[ thread ]</a>
+              <a href="subject.html#0">[ subject ]</a>
+              <a href="author.html#0">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/zaptel-bsd-svn">More information about the Zaptel-bsd-svn
+mailing list</a><br>
+</body></html>

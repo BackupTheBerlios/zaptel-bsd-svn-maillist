@@ -1,0 +1,90 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Zaptel-bsd-svn] r18 - trunk/wcfxs
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/zaptel-bsd-svn/2004-August/index.html" >
+   <LINK REL="made" HREF="mailto:zaptel-bsd-svn%40lists.berlios.de?Subject=Re%3A%20%5BZaptel-bsd-svn%5D%20r18%20-%20trunk/wcfxs&In-Reply-To=%3C200408171236.i7HCaA1f028718%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   
+   <LINK REL="Next"  HREF="000015.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Zaptel-bsd-svn] r18 - trunk/wcfxs</H1>
+    <B>Alexander Timoshenko at BerliOS</B> 
+    <A HREF="mailto:zaptel-bsd-svn%40lists.berlios.de?Subject=Re%3A%20%5BZaptel-bsd-svn%5D%20r18%20-%20trunk/wcfxs&In-Reply-To=%3C200408171236.i7HCaA1f028718%40sheep.berlios.de%3E"
+       TITLE="[Zaptel-bsd-svn] r18 - trunk/wcfxs">gonzo at sheep.berlios.de
+       </A><BR>
+    <I>Tue Aug 17 14:36:10 CEST 2004</I>
+    <P><UL>
+        
+        <LI>Next message: <A HREF="000015.html">[Zaptel-bsd-svn] r19 - in trunk: wcfxs zaptel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#14">[ date ]</a>
+              <a href="thread.html#14">[ thread ]</a>
+              <a href="subject.html#14">[ subject ]</a>
+              <a href="author.html#14">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: gonzo
+Date: 2004-08-17 14:36:07 +0200 (Tue, 17 Aug 2004)
+New Revision: 18
+
+Modified:
+   trunk/wcfxs/wcfxs.c
+Log:
+	o Add recognition for Rev H freshmaker
+
+
+Modified: trunk/wcfxs/wcfxs.c
+===================================================================
+--- trunk/wcfxs/wcfxs.c	2004-07-23 16:46:09 UTC (rev 17)
++++ trunk/wcfxs/wcfxs.c	2004-08-17 12:36:07 UTC (rev 18)
+@@ -277,6 +277,7 @@
+ 
+ static struct wcfxs_desc wcfxs = { &quot;Wildcard S400P Prototype&quot;, 0 };
+ static struct wcfxs_desc wcfxse = { &quot;Wildcard TDM400P REV E/F&quot;, 0 };
++static struct wcfxs_desc wcfxsh = { &quot;Wildcard TDM400P REV H&quot;, 0 };
+ 
+ static void wcfxs_release(struct wcfxs_softc *sc);
+ void wcfxs_generate_description(struct wcfxs_softc * sc);
+@@ -1927,6 +1928,7 @@
+ 	{ 0xe159, 0x0001, 0xa159,	&amp;wcfxs },
+ 	{ 0xe159, 0x0001, 0xe159,	&amp;wcfxs },
+ 	{ 0xe159, 0x0001, 0xb100,	&amp;wcfxse },
++	{ 0xe159, 0x0001, 0xa9fd,	&amp;wcfxsh },
+ 	{ 0, 0, 0, 0},
+ };
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	
+	<LI>Next message: <A HREF="000015.html">[Zaptel-bsd-svn] r19 - in trunk: wcfxs zaptel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#14">[ date ]</a>
+              <a href="thread.html#14">[ thread ]</a>
+              <a href="subject.html#14">[ subject ]</a>
+              <a href="author.html#14">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/zaptel-bsd-svn">More information about the Zaptel-bsd-svn
+mailing list</a><br>
+</body></html>

@@ -1,0 +1,190 @@
+From gonzo at sheep.berlios.de  Tue Aug 17 14:36:10 2004
+From: gonzo at sheep.berlios.de (Alexander Timoshenko at BerliOS)
+Date: Tue, 17 Aug 2004 14:36:10 +0200
+Subject: [Zaptel-bsd-svn] r18 - trunk/wcfxs
+Message-ID: <200408171236.i7HCaA1f028718@sheep.berlios.de>
+
+Author: gonzo
+Date: 2004-08-17 14:36:07 +0200 (Tue, 17 Aug 2004)
+New Revision: 18
+
+Modified:
+   trunk/wcfxs/wcfxs.c
+Log:
+	o Add recognition for Rev H freshmaker
+
+
+Modified: trunk/wcfxs/wcfxs.c
+===================================================================
+--- trunk/wcfxs/wcfxs.c	2004-07-23 16:46:09 UTC (rev 17)
++++ trunk/wcfxs/wcfxs.c	2004-08-17 12:36:07 UTC (rev 18)
+@@ -277,6 +277,7 @@
+ 
+ static struct wcfxs_desc wcfxs = { "Wildcard S400P Prototype", 0 };
+ static struct wcfxs_desc wcfxse = { "Wildcard TDM400P REV E/F", 0 };
++static struct wcfxs_desc wcfxsh = { "Wildcard TDM400P REV H", 0 };
+ 
+ static void wcfxs_release(struct wcfxs_softc *sc);
+ void wcfxs_generate_description(struct wcfxs_softc * sc);
+@@ -1927,6 +1928,7 @@
+ 	{ 0xe159, 0x0001, 0xa159,	&wcfxs },
+ 	{ 0xe159, 0x0001, 0xe159,	&wcfxs },
+ 	{ 0xe159, 0x0001, 0xb100,	&wcfxse },
++	{ 0xe159, 0x0001, 0xa9fd,	&wcfxsh },
+ 	{ 0, 0, 0, 0},
+ };
+ 
+
+
+
+From gonzo at sheep.berlios.de  Tue Aug 17 14:57:35 2004
+From: gonzo at sheep.berlios.de (Alexander Timoshenko at BerliOS)
+Date: Tue, 17 Aug 2004 14:57:35 +0200
+Subject: [Zaptel-bsd-svn] r19 - in trunk: wcfxs zaptel
+Message-ID: <200408171257.i7HCvZNE031728@sheep.berlios.de>
+
+Author: gonzo
+Date: 2004-08-17 14:57:34 +0200 (Tue, 17 Aug 2004)
+New Revision: 19
+
+Modified:
+   trunk/wcfxs/wcfxs.c
+   trunk/zaptel/zaptel.h
+Log:
+	o Add polarity reverse detection. Merged from linux version.
+
+
+Modified: trunk/wcfxs/wcfxs.c
+===================================================================
+--- trunk/wcfxs/wcfxs.c	2004-08-17 12:36:07 UTC (rev 18)
++++ trunk/wcfxs/wcfxs.c	2004-08-17 12:57:34 UTC (rev 19)
+@@ -167,8 +167,9 @@
+ #define FLAG_WRITE	1
+ #define FLAG_READ	2
+ 
+-#define RING_DEBOUNCE	64		/* Ringer Debounce (in ms) */
+-#define BATT_DEBOUNCE	64		/* Battery debounce (in ms) */
++#define RING_DEBOUNCE		64		/* Ringer Debounce (in ms) */
++#define BATT_DEBOUNCE		64		/* Battery debounce (in ms) */
++#define POLARITY_DEBOUNCE	64		/* Polarity debounce (in ms) */
+ #define BATT_THRESH		3		/* Anything under this is "no battery" */
+ 
+ #define OHT_TIMER		6000	/* How long after RING to retain OHT */
+@@ -233,6 +234,9 @@
+ 			int battdebounce[NUM_CARDS];
+ 			int nobatttimer[NUM_CARDS];
+ 			int battery[NUM_CARDS];
++			int lastpol[NUM_CARDS];
++			int polarity[NUM_CARDS];
++			int polaritydebounce[NUM_CARDS];
+ 		} fxo;
+ 		struct {
+ 			int oldrxhook[NUM_CARDS];
+@@ -1479,6 +1483,19 @@
+ 			wcfxs_generate_description(sc);
+ 		} else if (sc->mod.fxo.battery[card])
+ 			sc->mod.fxo.battdebounce[card] = BATT_DEBOUNCE;
++
++			if (sc->mod.fxo.lastpol[card] >= 0) {
++				if (b < 0) {
++					sc->mod.fxo.lastpol[card] = -1;
++					sc->mod.fxo.polaritydebounce[card] = POLARITY_DEBOUNCE;
++				}
++			} 
++			if (sc->mod.fxo.lastpol[card] <= 0) {
++			if (b > 0) {
++				sc->mod.fxo.lastpol[card] = 1;
++				sc->mod.fxo.polaritydebounce[card] = POLARITY_DEBOUNCE;
++			}
++               }
+ 	} else {
+ 		/* It's something else... */
+ 		sc->mod.fxo.battdebounce[card] = BATT_DEBOUNCE;
+@@ -1486,6 +1503,19 @@
+ 	if (sc->mod.fxo.battdebounce[card])
+ 		sc->mod.fxo.battdebounce[card]--;
+ 	
++	if (sc->mod.fxo.polaritydebounce[card]) {
++ 		sc->mod.fxo.polaritydebounce[card]--;
++		if (sc->mod.fxo.polaritydebounce[card] < 1) {
++			if (sc->mod.fxo.lastpol[card] != sc->mod.fxo.polarity[card]) {
++				printf("Polarity reversed (%d -> %d)\n", 
++				sc->mod.fxo.polarity[card], 
++				sc->mod.fxo.lastpol[card]);
++				if (sc->mod.fxo.polarity[card])
++				zt_qevent_lock(&sc->chans[card], ZT_EVENT_POLARITY);
++ 				sc->mod.fxo.polarity[card] = sc->mod.fxo.lastpol[card];
++			}
++		}
++	}
+ }
+ 
+ static void wcfxs_proslic_check_hook(struct wcfxs_softc *sc, int card)
+
+Modified: trunk/zaptel/zaptel.h
+===================================================================
+--- trunk/zaptel/zaptel.h	2004-08-17 12:36:07 UTC (rev 18)
++++ trunk/zaptel/zaptel.h	2004-08-17 12:57:34 UTC (rev 19)
+@@ -969,6 +969,8 @@
+ /* Timer event -- ping ready */
+ #define ZT_EVENT_TIMER_PING 16
+ 
++/* Polarity reversal event */
++#define ZT_EVENT_POLARITY  17
+ 
+ #define ZT_EVENT_PULSEDIGIT (1 << 16)   /* This is OR'd with the digit received */
+ #define ZT_EVENT_DTMFDIGIT  (1 << 17)   /* Ditto for DTMF */
+
+
+
+From gonzo at sheep.berlios.de  Thu Aug 26 17:51:39 2004
+From: gonzo at sheep.berlios.de (Alexander Timoshenko at BerliOS)
+Date: Thu, 26 Aug 2004 17:51:39 +0200
+Subject: [Zaptel-bsd-svn] r20 - trunk/zaptel
+Message-ID: <200408261551.i7QFpdD6004487@sheep.berlios.de>
+
+Author: gonzo
+Date: 2004-08-26 17:51:36 +0200 (Thu, 26 Aug 2004)
+New Revision: 20
+
+Modified:
+   trunk/zaptel/os.h
+   trunk/zaptel/zaptel.c
+Log:
+        o added missed include
+        o fixed "No such device" error in zt_clone for 4.X
+
+
+
+Modified: trunk/zaptel/os.h
+===================================================================
+--- trunk/zaptel/os.h	2004-08-17 12:57:34 UTC (rev 19)
++++ trunk/zaptel/os.h	2004-08-26 15:51:36 UTC (rev 20)
+@@ -3,6 +3,10 @@
+ 
+ #ifdef _KERNEL
+ 
++#ifdef __FreeBSD__
++#include <sys/file.h>
++#endif
++
+ /* Here is all the os-dependend structures definitions */
+ #ifdef __OpenBSD__
+ #include <sys/exec.h>
+
+Modified: trunk/zaptel/zaptel.c
+===================================================================
+--- trunk/zaptel/zaptel.c	2004-08-17 12:57:34 UTC (rev 19)
++++ trunk/zaptel/zaptel.c	2004-08-26 15:51:36 UTC (rev 20)
+@@ -1748,6 +1748,8 @@
+ 	PROC_LOCK(p);
+ 	td->td_dupfd = fd;
+ 	PROC_UNLOCK(p);
++#else
++	p->p_dupfd = fd;
+ #endif
+ 
+ 	if(filep)
+
+
+

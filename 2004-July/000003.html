@@ -1,0 +1,438 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Zaptel-bsd-svn] r9 - in trunk: wcfxo wcfxs zaptel
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/zaptel-bsd-svn/2004-July/index.html" >
+   <LINK REL="made" HREF="mailto:zaptel-bsd-svn%40lists.berlios.de?Subject=Re%3A%20%5BZaptel-bsd-svn%5D%20r9%20-%20in%20trunk%3A%20wcfxo%20wcfxs%20zaptel&In-Reply-To=%3C200407211522.i6LFMMtW027743%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000002.html">
+   <LINK REL="Next"  HREF="000004.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Zaptel-bsd-svn] r9 - in trunk: wcfxo wcfxs zaptel</H1>
+    <B>Alexander Timoshenko at BerliOS</B> 
+    <A HREF="mailto:zaptel-bsd-svn%40lists.berlios.de?Subject=Re%3A%20%5BZaptel-bsd-svn%5D%20r9%20-%20in%20trunk%3A%20wcfxo%20wcfxs%20zaptel&In-Reply-To=%3C200407211522.i6LFMMtW027743%40sheep.berlios.de%3E"
+       TITLE="[Zaptel-bsd-svn] r9 - in trunk: wcfxo wcfxs zaptel">gonzo at sheep.berlios.de
+       </A><BR>
+    <I>Wed Jul 21 17:22:22 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000002.html">[Zaptel-bsd-svn] r8 - in trunk: . test wcfxo wcfxs zaptel ztcfg ztdummy
+</A></li>
+        <LI>Next message: <A HREF="000004.html">[Zaptel-bsd-svn] r10 - trunk/wcfxs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3">[ date ]</a>
+              <a href="thread.html#3">[ thread ]</a>
+              <a href="subject.html#3">[ subject ]</a>
+              <a href="author.html#3">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: gonzo
+Date: 2004-07-21 17:22:22 +0200 (Wed, 21 Jul 2004)
+New Revision: 9
+
+Modified:
+   trunk/wcfxo/wcfxo.c
+   trunk/wcfxs/wcfxs.c
+   trunk/zaptel/zaptel.c
+Log:
+	o 4.X compatibility fixes
+
+
+Modified: trunk/wcfxo/wcfxo.c
+===================================================================
+--- trunk/wcfxo/wcfxo.c	2004-07-21 14:34:03 UTC (rev 8)
++++ trunk/wcfxo/wcfxo.c	2004-07-21 15:22:22 UTC (rev 9)
+@@ -70,7 +70,7 @@
+ 
+ 
+ #define DEBUG 1
+-/* #define ZERO_BATT_RING 1 */
++#define ZERO_BATT_RING 1
+ /* #define JAPAN 1 */
+ #define WC_MAX_IFACES 128
+ #define WCFXO_MAX_PORTS 4
+@@ -117,7 +117,17 @@
+ #define FLAG_DOUBLE_CLOCK   (1 &lt;&lt; 2)
+ #define FLAG_RESET_ON_AUX5  (1 &lt;&lt; 3)
+ 
++#ifndef PCIR_BARS
++#define PCIR_BARS		0x10
++#define PCIR_BAR(x)		(PCIR_BARS + (x) * 4)
++#endif
+ 
++#ifndef MIN
++#define MIN(a,b) (((a)&lt;(b))?(a):(b))
++#endif
++
++
++
+ /* devices list */
+ static struct wcfxo_desc wcx100p = { &quot;Wildcard X100P&quot;,
+ 	FLAG_INVERTSER | FLAG_USE_XTAL | FLAG_DOUBLE_CLOCK };
+@@ -181,7 +191,11 @@
+ 	void				*intr_cookie;
+ 	int					ilr_enabled;
+ 
++#if __FreeBSD_version &lt; 500000
++	dev_t				d;
++#else
+ 	struct cdev *		d;
++#endif
+ 	char 				*variety;
+ 	struct zt_span 		span;
+ 	struct zt_chan 		chan;
+@@ -254,7 +268,7 @@
+ static int monitor = 0;
+ static int quiet = 0;
+ static int boost = 0;
+-static int opermode = 0;
++static int opermode = 2;
+ static int batterycheck = 1;
+ 
+ static void wcfxo_release(struct wcfxo_softc *sc)
+@@ -385,7 +399,7 @@
+ 		reg =  sc-&gt;readregs[0x5] &amp; 0xfe;
+ 		wcfxo_setreg(sc, 0x5, reg);
+ 
+-		reg = reg &amp; ~0x08;
++		reg = reg | 0x08;
+ 		wcfxo_setreg(sc, 0x5, reg);
+ 
+ 		sc-&gt;offhook = 0;
+@@ -828,9 +842,9 @@
+ 	int reg17 = ((fxo_modes[opermode].lim &amp; 0x3) &lt;&lt; 3);
+ 	int reg18 = ((fxo_modes[opermode].vol &amp; 0x3) &lt;&lt; 3);
+ 
+-	wcfxo_setreg(sc, 0x16, reg16);
+-	wcfxo_setreg(sc, 0x17, reg17);
+-	wcfxo_setreg(sc, 0x18, reg18);
++	wcfxo_setreg(sc, 16, reg16);
++	wcfxo_setreg(sc, 17, reg17);
++	wcfxo_setreg(sc, 18, reg18);
+ 
+ 
+ 	/* Wait a couple of jiffies for our writes to finish */
+@@ -985,6 +999,7 @@
+ 		printf(&quot;PCI Target abort\n&quot;);
+ 		return;
+ 	}
++
+ 	if (batterycheck) {
+ 		/* Check for BATTERY from register and debounce for 8 ms */
+ 		b = sc-&gt;readregs[0xc] &amp; 0xf;
+@@ -1123,7 +1138,11 @@
+ 	u_int16_t 				error;
+ 	u_int32_t 				command;
+ 	struct wcfxo_softc 		*sc;
++#if __FreeBSD_version &lt; 500000
++	dev_t					d;
++#else
+ 	struct cdev				* d;
++#endif
+ 	int 					unit, rid;
+ 	struct wcfxo_ident 		*ident;
+ 	uint16_t				vid;
+@@ -1412,9 +1431,28 @@
+ 
+ static devclass_t wcfxo_devclass;
+ 
++#if __FreeBSD_version &lt; 500000
++static driver_t *wcfxo_pci_driver_list = { &amp;wcfxo_driver };
+ static struct driver_module_data wcfxo_pci_driver_mod = { 
+ 	0, 0,
+ 	&quot;pci&quot;,
++	&amp;wcfxo_pci_driver_list,
++	sizeof(wcfxo_pci_driver_list)/sizeof(wcfxo_pci_driver_list[0]),
++	&amp;wcfxo_devclass
++};
++
++static moduledata_t wcfxo_pci_mod = {
++        &quot;pci/wcfxo&quot;,
++        wcfxo_load,
++        &amp;wcfxo_pci_driver_mod
++};
++
++#else
++
++
++static struct driver_module_data wcfxo_pci_driver_mod = { 
++	0, 0,
++	&quot;pci&quot;,
+ 	(kobj_class_t) &amp;wcfxo_driver,
+ 	&amp;wcfxo_devclass
+ };
+@@ -1425,7 +1463,7 @@
+         &amp;wcfxo_pci_driver_mod
+ };
+ 
+-
++#endif
+ MODULE_DEPEND(wcfxo, zaptel, 1, 1, 1);
+ /* DRIVER_MODULE(wcfxo, pci, wcfxo_driver, wcfxo_devclass, 0, 0); */
+ DECLARE_MODULE(wcfxo, wcfxo_pci_mod, SI_SUB_DRIVERS, SI_ORDER_MIDDLE);
+
+Modified: trunk/wcfxs/wcfxs.c
+===================================================================
+--- trunk/wcfxs/wcfxs.c	2004-07-21 14:34:03 UTC (rev 8)
++++ trunk/wcfxs/wcfxs.c	2004-07-21 15:22:22 UTC (rev 9)
+@@ -58,9 +58,11 @@
+ #include &lt;dev/pci/pcivar.h&gt;
+ #endif
+ 
++#if __FreeBSD_version &lt; 500000
++#include &lt;sys/kobj.h&gt;
++#endif
+ 
+ 
+-
+ #include &quot;proslic.h&quot;
+ #include &quot;wcfxs.h&quot;
+ #include &quot;wcfxsreg.h&quot;
+@@ -184,14 +186,25 @@
+ #define PEGTIME		50 * 8		/* 50ms peak to peak gets us rings of 10 Hz or more */
+ #define PEGCOUNT	5		/* 5 cycles of pegging means RING */
+ 
++#ifndef PCIR_BARS
++#define PCIR_BARS		0x10
++#define PCIR_BAR(x)		(PCIR_BARS + (x) * 4)
++#endif
+ 
++#ifndef MIN
++#define MIN(a,b) (((a)&lt;(b))?(a):(b))
++#endif
+ 
+ struct wcfxs_softc {
+ 	struct pci_dev *dev;
+ 	char *variety;
+ 	struct zt_span span;
+ 	unsigned char ios;
++#if _FreeBSD_version &lt; 500000
++	dev_t d;
++#else
+ 	struct cdev * d; /* need to keep it for destroy_dev() */
++#endif
+ 	int usecount;
+ 	int intcount;
+ 	int dead;
+@@ -2060,7 +2073,11 @@
+ 	uint16_t				vid;
+ 	uint16_t				devid;
+ 	uint16_t				svid;
++#if _FreeBSD_version &lt; 500000
++	dev_t					d;
++#else
+ 	struct cdev *			d;
++#endif
+ 
+ 	vid		= pci_get_vendor(dev);
+ 	devid 	= pci_get_device(dev);
+@@ -2365,7 +2382,7 @@
+  * they will give detailed info about card installed
+  */ 
+ #if __FreeBSD_version &lt; 500000
+-int wcfxs_sys_open(struct cdev * dev, int flag, int otyp, int devtype, struct proc *threadp)
++int wcfxs_sys_open(dev_t dev, int flag, int devtype, struct proc *threadp)
+ #else
+ int wcfxs_sys_open(struct cdev * dev, int flag, int mode, struct thread *threadp)
+ #endif
+@@ -2374,7 +2391,7 @@
+ }
+ 
+ #if __FreeBSD_version &lt; 500000
+-int wcfxs_sys_close(struct cdev * dev, int flags, int fmt, struct proc *threadp)
++int wcfxs_sys_close(dev_t dev, int flags, int fmt, struct proc *threadp)
+ #else
+ int wcfxs_sys_close(struct cdev * dev, int flags, int fmt, struct thread *threadp)
+ #endif
+@@ -2382,8 +2399,13 @@
+ 	return 0;
+ }
+ 
++#if __FreeBSD_version &lt; 500000
+ int
++wcfxs_sys_read(dev_t dev, struct uio *uio, int flag)
++#else
++int
+ wcfxs_sys_read(struct cdev *dev, struct uio *uio, int flag)
++#endif
+ {
+ 	int size;
+ 	/* end of file */
+@@ -2445,9 +2467,27 @@
+ 
+ static devclass_t wcfxs_devclass;
+ 
++#if __FreeBSD_version &lt; 500000
++static driver_t *wcfxs_pci_driver_list = { &amp;wcfxs_driver };
+ static struct driver_module_data wcfxs_pci_driver_mod = { 
+ 	0, 0,
+ 	&quot;pci&quot;,
++	&amp;wcfxs_pci_driver_list,
++	sizeof(wcfxs_pci_driver_list)/sizeof(wcfxs_pci_driver_list[0]),
++	&amp;wcfxs_devclass
++};
++
++static moduledata_t wcfxs_pci_mod = {
++        &quot;pci/wcfxs&quot;,
++        wcfxs_load,
++        &amp;wcfxs_pci_driver_mod
++};
++
++#else
++
++static struct driver_module_data wcfxs_pci_driver_mod = { 
++	0, 0,
++	&quot;pci&quot;,
+ 	(kobj_class_t) &amp;wcfxs_driver,
+ 	&amp;wcfxs_devclass
+ };
+@@ -2457,9 +2497,9 @@
+         wcfxs_load,
+         &amp;wcfxs_pci_driver_mod
+ };
++#endif
+ 
+ 
+-
+ MODULE_DEPEND(wcfxs, zaptel, 1, 1, 1);
+ /* DRIVER_MODULE(wcfxs, pci, wcfxs_driver, wcfxs_devclass, 0, 0); */
+ DECLARE_MODULE(wcfxs, wcfxs_pci_mod, SI_SUB_DRIVERS, SI_ORDER_MIDDLE);
+
+Modified: trunk/zaptel/zaptel.c
+===================================================================
+--- trunk/zaptel/zaptel.c	2004-07-21 14:34:03 UTC (rev 8)
++++ trunk/zaptel/zaptel.c	2004-07-21 15:22:22 UTC (rev 9)
+@@ -171,6 +171,12 @@
+ 					    struct proc *p));
+ static int zt_poll	__P((struct file *fp, int events,
+ 					    struct ucred *cred, struct proc *p));
++
++static int zt_stat  __P((struct file * fp, struct stat *sb, 
++						struct proc * p));
++static int zt_kqfilter __P((struct file *fp,
++						struct knote *kn));
++
+ #endif
+ 
+ /* sysctl stuff */
+@@ -260,10 +266,18 @@
+ 
+ static int debug = 0;
+ static int deftaps = 64;
++
++#if __FreeBSD_version &lt; 500000
++static dev_t dev_channel;
++static dev_t dev_timer;
++static dev_t dev_pseudo;
++static dev_t dev_ctl;
++#else
+ static struct cdev * dev_channel;
+ static struct cdev * dev_timer;
+ static struct cdev * dev_pseudo;
+ static struct cdev * dev_ctl;
++#endif
+ 
+ /* states for transmit signalling */
+ typedef enum {ZT_TXSTATE_ONHOOK,ZT_TXSTATE_OFFHOOK,ZT_TXSTATE_START,
+@@ -1633,7 +1647,7 @@
+ }
+ 
+ #if __FreeBSD_version &lt; 500000
+-static int zt_clone(struct file ** filep, struct cdev * dev, int flags, void *data, 
++static int zt_clone(struct file ** filep, dev_t dev, int flags, void *data, 
+ 					struct proc *p)
+ #else
+ static int zt_clone(struct file ** filep, struct cdev * dev, int flags, void *data, 
+@@ -1724,7 +1738,7 @@
+ }
+ 
+ #if __FreeBSD_version &lt; 500000
+-static int zt_ctl_open(struct cdev * dev, int flags, struct proc * threadp)
++static int zt_ctl_open(dev_t dev, int flags, struct proc * threadp)
+ #else
+ static int zt_ctl_open(struct cdev * dev, int flags, struct thread * threadp)
+ #endif
+@@ -1738,7 +1752,7 @@
+ 
+ 	
+ #if __FreeBSD_version &lt; 500000
+-static int zt_chan_open(struct cdev * dev, int flag, struct proc * threadp)
++static int zt_chan_open(dev_t dev, int flag, struct proc * threadp)
+ #else
+ static int zt_chan_open(struct cdev * dev, int flag, struct thread * threadp)
+ #endif
+@@ -2054,7 +2068,7 @@
+ }
+ 
+ #if __FreeBSD_version &lt; 500000
+-static int zt_timing_open(struct cdev * dev, int flag, struct proc * threadp)
++static int zt_timing_open(dev_t dev, int flag, struct proc * threadp)
+ #else
+ static int zt_timing_open(struct cdev * dev, int flag, struct thread * threadp)
+ #endif
+@@ -2193,7 +2207,7 @@
+ 	
+ 
+ #if __FreeBSD_version &lt; 500000
+-int zt_open(struct cdev * dev, int flag, int otyp, int devtype, struct proc *threadp)
++int zt_open(dev_t dev, int flag, int devtype, struct proc *threadp)
+ #else
+ int zt_open(struct cdev * dev, int flag, int mode, struct thread *threadp)
+ #endif
+@@ -2726,7 +2740,7 @@
+ 
+ #if __FreeBSD_version &lt; 500000
+ int zt_stat(struct file * fp, struct stat *sb, 
+-		struct ucred * active_cred, struct proc * td)
++		struct proc * td)
+ #else
+ int zt_stat(struct file * fp, struct stat *sb, 
+ 		struct ucred * active_cred, struct thread * td)
+@@ -3257,11 +3271,13 @@
+ 		
+ 		if (!res &amp;&amp; chans[ch.chan]-&gt;span-&gt;chanconfig)
+ 			res = chans[ch.chan]-&gt;span-&gt;chanconfig(chans[ch.chan], ch.sigtype);
++
+ 		if (chans[ch.chan]-&gt;master) {
+ 			/* Clear the master channel */
+ 			recalc_slaves(chans[ch.chan]-&gt;master);
+ 			chans[ch.chan]-&gt;nextslave = 0;
+ 		}
++
+ 		if (!res) {
+ 			chans[ch.chan]-&gt;sig = ch.sigtype;
+ 			if (chans[ch.chan]-&gt;sig == ZT_SIG_CAS)
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000002.html">[Zaptel-bsd-svn] r8 - in trunk: . test wcfxo wcfxs zaptel ztcfg ztdummy
+</A></li>
+	<LI>Next message: <A HREF="000004.html">[Zaptel-bsd-svn] r10 - trunk/wcfxs
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#3">[ date ]</a>
+              <a href="thread.html#3">[ thread ]</a>
+              <a href="subject.html#3">[ subject ]</a>
+              <a href="author.html#3">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/zaptel-bsd-svn">More information about the Zaptel-bsd-svn
+mailing list</a><br>
+</body></html>

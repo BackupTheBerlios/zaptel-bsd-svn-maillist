@@ -1,0 +1,2455 @@
+From gonzo at sheep.berlios.de  Mon Jul 19 17:39:31 2004
+From: gonzo at sheep.berlios.de (Alexander Timoshenko at BerliOS)
+Date: Mon, 19 Jul 2004 17:39:31 +0200
+Subject: [Zaptel-bsd-svn] r7 - in trunk: . zaptel
+Message-ID: <200407191539.i6JFdV5n030187@sheep.berlios.de>
+
+Author: gonzo
+Date: 2004-07-19 17:39:31 +0200 (Mon, 19 Jul 2004)
+New Revision: 7
+
+Modified:
+   trunk/ChangeLog
+   trunk/zaptel/zaptel.c
+Log:
+    o f_stat/f_kqfilter stubs routines (absence causes
+        kernel panic on fstat() call, which is used in
+        libc_r)
+
+
+Modified: trunk/ChangeLog
+===================================================================
+--- trunk/ChangeLog	2004-07-18 19:12:36 UTC (rev 6)
++++ trunk/ChangeLog	2004-07-19 15:39:31 UTC (rev 7)
+@@ -1,3 +1,8 @@
++19/07/2004 Alexander Timoshenko <gonzo at portaone.com>
++    o f_stat/f_kqfilter stubs routines (absence causes
++        kernel panic on fstat() call, which is used in
++        libc_r)
++
+ 09/07/2004 Alexander Timoshenko <gonzo at portaone.com>
+     o ztdummy driver (patch contributed by Chris Stenton <jacs at gnome.co.uk>)
+     o zttest app (patch contributed by Chris Stenton <jacs at gnome.co.uk>)
+
+Modified: trunk/zaptel/zaptel.c
+===================================================================
+--- trunk/zaptel/zaptel.c	2004-07-18 19:12:36 UTC (rev 6)
++++ trunk/zaptel/zaptel.c	2004-07-19 15:39:31 UTC (rev 7)
+@@ -116,6 +116,7 @@
+ #include <sys/vnode.h>
+ #include <net/ppp_defs.h>
+ #include <sys/conf.h>
++#include <sys/stat.h>
+ 
+ #include <sys/sysctl.h>
+ 
+@@ -156,6 +157,8 @@
+ fo_rdwr_t			zt_read;
+ fo_rdwr_t			zt_write;
+ fo_poll_t			zt_poll;
++fo_stat_t			zt_stat;
++fo_kqfilter_t		zt_kqfilter;
+ #else
+ static int zt_close __P((struct file *fp, struct proc *p));
+ static int zt_ioctl __P((struct file *fp, u_long com,
+@@ -189,6 +192,8 @@
+ 	.fo_read = zt_read,
+ 	.fo_write = zt_write,
+ 	.fo_poll =  zt_poll,
++	.fo_stat = zt_stat,
++	.fo_kqfilter = zt_kqfilter
+ };
+ 
+ 
+@@ -2719,8 +2724,33 @@
+ 	}
+ }
+ 
++#if __FreeBSD_version < 500000
++int zt_stat(struct file * fp, struct stat *sb, 
++		struct ucred * active_cred, struct proc * td)
++#else
++int zt_stat(struct file * fp, struct stat *sb, 
++		struct ucred * active_cred, struct thread * td)
++#endif
++{
++	bzero(sb, sizeof(*sb));
++	sb->st_mode = S_IFCHR;
++	/*
++	* Left as 0: st_dev, st_ino, st_nlink, st_rdev, st_flags, st_gen.
++	* XXX (st_dev, st_ino) should be unique.
++	*/
++	return (0);
++}
+ 
++/*
++ * Stub for fo_kqfilter
++ *
++ */
++int zt_kqfilter(struct file *fp, struct knote *kn)
++{
++	return EINVAL;
++}
+ 
++
+ #if __FreeBSD_version < 500000
+ int zt_close(struct file * fp, struct proc *p)
+ #else
+
+
+
+From gonzo at sheep.berlios.de  Mon Jul 19 17:40:32 2004
+From: gonzo at sheep.berlios.de (Alexander Timoshenko at BerliOS)
+Date: Mon, 19 Jul 2004 17:40:32 +0200
+Subject: [Zaptel-bsd-svn] r7 - in trunk: . zaptel
+Message-ID: <200407191540.i6JFeWgF030267@sheep.berlios.de>
+
+Author: gonzo
+Date: 2004-07-19 17:39:31 +0200 (Mon, 19 Jul 2004)
+New Revision: 7
+
+Modified:
+   trunk/ChangeLog
+   trunk/zaptel/zaptel.c
+Log:
+    o f_stat/f_kqfilter stubs routines (absence causes
+        kernel panic on fstat() call, which is used in
+        libc_r)
+
+
+Modified: trunk/ChangeLog
+===================================================================
+--- trunk/ChangeLog	2004-07-18 19:12:36 UTC (rev 6)
++++ trunk/ChangeLog	2004-07-19 15:39:31 UTC (rev 7)
+@@ -1,3 +1,8 @@
++19/07/2004 Alexander Timoshenko <gonzo at portaone.com>
++    o f_stat/f_kqfilter stubs routines (absence causes
++        kernel panic on fstat() call, which is used in
++        libc_r)
++
+ 09/07/2004 Alexander Timoshenko <gonzo at portaone.com>
+     o ztdummy driver (patch contributed by Chris Stenton <jacs at gnome.co.uk>)
+     o zttest app (patch contributed by Chris Stenton <jacs at gnome.co.uk>)
+
+Modified: trunk/zaptel/zaptel.c
+===================================================================
+--- trunk/zaptel/zaptel.c	2004-07-18 19:12:36 UTC (rev 6)
++++ trunk/zaptel/zaptel.c	2004-07-19 15:39:31 UTC (rev 7)
+@@ -116,6 +116,7 @@
+ #include <sys/vnode.h>
+ #include <net/ppp_defs.h>
+ #include <sys/conf.h>
++#include <sys/stat.h>
+ 
+ #include <sys/sysctl.h>
+ 
+@@ -156,6 +157,8 @@
+ fo_rdwr_t			zt_read;
+ fo_rdwr_t			zt_write;
+ fo_poll_t			zt_poll;
++fo_stat_t			zt_stat;
++fo_kqfilter_t		zt_kqfilter;
+ #else
+ static int zt_close __P((struct file *fp, struct proc *p));
+ static int zt_ioctl __P((struct file *fp, u_long com,
+@@ -189,6 +192,8 @@
+ 	.fo_read = zt_read,
+ 	.fo_write = zt_write,
+ 	.fo_poll =  zt_poll,
++	.fo_stat = zt_stat,
++	.fo_kqfilter = zt_kqfilter
+ };
+ 
+ 
+@@ -2719,8 +2724,33 @@
+ 	}
+ }
+ 
++#if __FreeBSD_version < 500000
++int zt_stat(struct file * fp, struct stat *sb, 
++		struct ucred * active_cred, struct proc * td)
++#else
++int zt_stat(struct file * fp, struct stat *sb, 
++		struct ucred * active_cred, struct thread * td)
++#endif
++{
++	bzero(sb, sizeof(*sb));
++	sb->st_mode = S_IFCHR;
++	/*
++	* Left as 0: st_dev, st_ino, st_nlink, st_rdev, st_flags, st_gen.
++	* XXX (st_dev, st_ino) should be unique.
++	*/
++	return (0);
++}
+ 
++/*
++ * Stub for fo_kqfilter
++ *
++ */
++int zt_kqfilter(struct file *fp, struct knote *kn)
++{
++	return EINVAL;
++}
+ 
++
+ #if __FreeBSD_version < 500000
+ int zt_close(struct file * fp, struct proc *p)
+ #else
+
+
+
+From gonzo at sheep.berlios.de  Wed Jul 21 16:34:03 2004
+From: gonzo at sheep.berlios.de (Alexander Timoshenko at BerliOS)
+Date: Wed, 21 Jul 2004 16:34:03 +0200
+Subject: [Zaptel-bsd-svn] r8 - in trunk: . test wcfxo wcfxs zaptel ztcfg ztdummy
+Message-ID: <200407211434.i6LEY38o024632@sheep.berlios.de>
+
+Author: gonzo
+Date: 2004-07-21 16:34:03 +0200 (Wed, 21 Jul 2004)
+New Revision: 8
+
+Modified:
+   trunk/ChangeLog
+   trunk/Makefile
+   trunk/README
+   trunk/test/Makefile
+   trunk/wcfxo/Makefile
+   trunk/wcfxs/Makefile
+   trunk/zaptel/Makefile
+   trunk/ztcfg/Makefile
+   trunk/ztcfg/ztcfg.h
+   trunk/ztdummy/Makefile
+Log:
+        o use ${MAKE} instead of make;
+        o use consistent style for variables assignments;
+        o add missed $Id$ into Makefiles;
+        o make it port-friendly by respecting PREFIX, LOCALBASE and BSD_INSTALL_XXX;
+        o respect global CFLAGS and CC;
+        o install sample etc/zaptel.conf.sample.
+
+
+Modified: trunk/ChangeLog
+===================================================================
+--- trunk/ChangeLog	2004-07-19 15:39:31 UTC (rev 7)
++++ trunk/ChangeLog	2004-07-21 14:34:03 UTC (rev 8)
+@@ -1,3 +1,11 @@
++21/07/2004 Maxim Sobolev <sobomax at freebsd.org>
++	o use ${MAKE} instead of make;
++	o use consistent style for variables assignments;
++	o add missed $Id$ into Makefiles;
++	o make it port-friendly by respecting PREFIX, LOCALBASE and BSD_INSTALL_XXX;
++	o respect global CFLAGS and CC;
++	o install sample etc/zaptel.conf.sample.
++
+ 19/07/2004 Alexander Timoshenko <gonzo at portaone.com>
+     o f_stat/f_kqfilter stubs routines (absence causes
+         kernel panic on fstat() call, which is used in
+@@ -7,3 +15,5 @@
+     o ztdummy driver (patch contributed by Chris Stenton <jacs at gnome.co.uk>)
+     o zttest app (patch contributed by Chris Stenton <jacs at gnome.co.uk>)
+     o ztls removed from makefile 
++
++
+
+Modified: trunk/Makefile
+===================================================================
+--- trunk/Makefile	2004-07-19 15:39:31 UTC (rev 7)
++++ trunk/Makefile	2004-07-21 14:34:03 UTC (rev 8)
+@@ -1,35 +1,36 @@
+ # $Id: Makefile 840 2004-06-16 15:23:08Z gonzo $
+ 
+ all:
+-	cd zaptel && make 
+-	cd wcfxs && make 
+-	cd wcfxo && make 
+-	cd ztdummy && make 
+-	cd ztcfg && make 
+-	cd test && make 
++	${MAKE} -C zaptel
++	${MAKE} -C wcfxs
++	${MAKE} -C wcfxo
++	${MAKE} -C ztdummy
++	${MAKE} -C ztcfg
++	${MAKE} -C test
+ 
+ load:
+-	cd zaptel && kldload ./zaptel.ko
+-	cd wcfxs && kldload ./wcfxs.ko
++	${MAKE} -C zaptel load
++	${MAKE} -C wcfxs load
++	${MAKE} -C wcfxo load
+ 
+ unload:
+-	cd wcfxs && kldunload wcfxs
+-	cd zaptel && kldunload zaptel
++	${MAKE} -C wcfxo unload
++	${MAKE} -C wcfxs unload
++	${MAKE} -C zaptel unload
+ 
+ clean:
+-	cd zaptel && make clean
+-	cd wcfxo && make clean
+-	cd wcfxs && make clean
+-	cd ztdummy && make clean
+-	cd ztcfg && make clean
+-	cd test && make clean
++	${MAKE} -C zaptel clean
++	${MAKE} -C wcfxo clean
++	${MAKE} -C wcfxs clean
++	${MAKE} -C ztdummy clean
++	${MAKE} -C ztcfg clean
++	${MAKE} -C test clean
+ 
+ install:
+-	cd zaptel && make install
+-	cd wcfxo && make install
+-	cd wcfxs && make install
+-	cd ztdummy && make install
+-	cd ztcfg && make install
+-	cd test && make install
++	${MAKE} -C zaptel install
++	${MAKE} -C wcfxo install
++	${MAKE} -C wcfxs install
++	${MAKE} -C ztdummy install
++	${MAKE} -C ztcfg install
+ 	
+ reload: unload load
+
+Modified: trunk/README
+===================================================================
+--- trunk/README	2004-07-19 15:39:31 UTC (rev 7)
++++ trunk/README	2004-07-21 14:34:03 UTC (rev 8)
+@@ -10,7 +10,7 @@
+ 	bash# make
+ 	bash# make install
+ 	bash# make load
+-	bash# create /etc/zaptel.conf with appropriate settings
++	bash# create /usr/local/etc/zaptel.conf with appropriate settings
+ 	bash# cd ztcfg
+ 	bash# make
+ 	bash# ./ztcfg
+
+Modified: trunk/test/Makefile
+===================================================================
+--- trunk/test/Makefile	2004-07-19 15:39:31 UTC (rev 7)
++++ trunk/test/Makefile	2004-07-21 14:34:03 UTC (rev 8)
+@@ -1,19 +1,21 @@
+ # $Id: Makefile 856 2004-06-22 13:40:16Z gonzo $ 
+-CFLAGS += -I/usr/local/include -I../zaptel -I../ztcfg
+ 
++LOCALBASE?=/usr/local
++CFLAGS+=-I${LOCALBASE}/include -I../zaptel -I../ztcfg
++
+ all: zttool fxo_test ztmonitor zttest
+ 
+ fxo_test: fxo_test.o
+-	gcc -o fxo_test fxo_test.o -ltonezone -L../ztcfg
++	${CC} ${CFLAGS} -o fxo_test fxo_test.o -ltonezone -L../ztcfg
+ 
+ ztmonitor: ztmonitor.o
+-	gcc -o ztmonitor ztmonitor.o -ltonezone -L../ztcfg
++	${CC} ${CFLAGS} -o ztmonitor ztmonitor.o -ltonezone -L../ztcfg
+ 
+ zttool: zttool.o
+-	gcc -o zttool zttool.o -ltonezone -L/usr/local/lib -lnewt -L../ztcfg
++	${CC} ${CFLAGS} -o zttool zttool.o -ltonezone -L${LOCALBASE}/lib -lnewt -L../ztcfg
+ 
+ zttest: zttest.o
+-	gcc -o zttest zttest.o
++	${CC} ${CFLAGS} -o zttest zttest.o
+ 
+ clean:
+ 	rm -f fxo_test ztmonitor zttool ztls zttest *.o
+
+Modified: trunk/wcfxo/Makefile
+===================================================================
+--- trunk/wcfxo/Makefile	2004-07-19 15:39:31 UTC (rev 7)
++++ trunk/wcfxo/Makefile	2004-07-21 14:34:03 UTC (rev 8)
+@@ -1,10 +1,11 @@
+ # $Id: Makefile 707 2004-04-14 13:39:03Z gonzo $
++
+ .PATH: /sys/dev/pci
+ SRCS=wcfxo.c wcfxovar.h
+ KMOD=wcfxo
+-CFLAGS+= -I../zaptel/ -g
+-SRCS        += device_if.h bus_if.h isa_if.h pci_if.h 
+-SRCS        += wcfxovar.h 
++CFLAGS+=-I../zaptel -g
++SRCS+=device_if.h bus_if.h isa_if.h pci_if.h 
++SRCS+=wcfxovar.h 
+ 
+ load: wcfxo.ko
+ 	kldload ./wcfxo.ko
+
+Modified: trunk/wcfxs/Makefile
+===================================================================
+--- trunk/wcfxs/Makefile	2004-07-19 15:39:31 UTC (rev 7)
++++ trunk/wcfxs/Makefile	2004-07-21 14:34:03 UTC (rev 8)
+@@ -1,10 +1,11 @@
+ # $Id: Makefile 707 2004-04-14 13:39:03Z gonzo $
++
+ .PATH: /sys/dev/pci
+ SRCS=wcfxs.c wcfxsvar.h
+ KMOD=wcfxs
+-CFLAGS+= -I../zaptel/ -g
+-SRCS        += device_if.h bus_if.h isa_if.h pci_if.h 
+-SRCS        += wcfxsvar.h 
++CFLAGS+=-I../zaptel -g
++SRCS+=device_if.h bus_if.h isa_if.h pci_if.h 
++SRCS+=wcfxsvar.h 
+ 
+ load: wcfxs.ko
+ 	kldload ./wcfxs.ko
+
+Modified: trunk/zaptel/Makefile
+===================================================================
+--- trunk/zaptel/Makefile	2004-07-19 15:39:31 UTC (rev 7)
++++ trunk/zaptel/Makefile	2004-07-21 14:34:03 UTC (rev 8)
+@@ -1,12 +1,14 @@
++# $Id$
++
+ .PATH: /sys/dev/pci
+ SRCS=zaptel.c arith.h tones.h zaptel.h
+ KMOD=zaptel
+-CFLAGS += -g
++CFLAGS+=-g
+ 
+-SRCS+=		device_if.h bus_if.h vnode_if.h
++SRCS+=device_if.h bus_if.h vnode_if.h
+ 
+ tones.h: gendigits.c
+-	gcc -o gendigits gendigits.c -lm
++	${CC} ${CFLAGS} -o gendigits gendigits.c -lm
+ 	./gendigits
+ 
+ load: zaptel.ko
+
+Modified: trunk/ztcfg/Makefile
+===================================================================
+--- trunk/ztcfg/Makefile	2004-07-19 15:39:31 UTC (rev 7)
++++ trunk/ztcfg/Makefile	2004-07-21 14:34:03 UTC (rev 8)
+@@ -1,10 +1,17 @@
+-CFLAGS+= -I/usr/local/include -I. -I../zaptel -DUSE_LOCAL_INCLUDE=1
++# $Id$
++
++LOCALBASE?=/usr/local
++PREFIX?=/usr/local
++CFLAGS+=-I${LOCALBASE}/include -I. -I../zaptel -DUSE_LOCAL_INCLUDE=1 \
++	-DPREFIX=\"${PREFIX}\"
+ INSTALL=/usr/bin/install
++BSD_INSTALL_PROGRAM?=${INSTALL} -o root -g wheel -m 755 -s
++BSD_INSTALL_DATA?=${INSTALL} -o root -g wheel -m 644
+ 
+ all: ztcfg libtonezone.a
+ 
+ ztcfg: ztcfg.o  tonezone.o zonedata.o
+-	$(CC) -o ztcfg ztcfg.o tonezone.o zonedata.o -lm -L. 
++	${CC} ${CFLAGS} -o ztcfg ztcfg.o tonezone.o zonedata.o -lm
+ 
+ ztcfg.c: ztcfg.h
+ 
+@@ -12,10 +19,14 @@
+ 	ar r libtonezone.a tonezone.o zonedata.o
+ 
+ install:
+-	$(INSTALL) -o root -g wheel -m 644 libtonezone.a /usr/local/lib/
+-	$(INSTALL) -o root -g wheel -m 644 tonezone.h /usr/local/include/
+-	$(INSTALL) -o root -g wheel -m 644 ../zaptel/zaptel.h /usr/local/include/
++	${BSD_INSTALL_PROGRAM} ztcfg ${PREFIX}/bin/
++	${BSD_INSTALL_DATA} libtonezone.a ${PREFIX}/lib/
++	${BSD_INSTALL_DATA} tonezone.h ${PREFIX}/include/
++	${BSD_INSTALL_DATA} ../zaptel/zaptel.h ${PREFIX}/include/
++	${BSD_INSTALL_DATA} zaptel.conf.sample ${PREFIX}/etc/
++	if [ ! -e ${PREFIX}/zaptel.conf ]; then \
++		${BSD_INSTALL_DATA} zaptel.conf.sample ${PREFIX}/etc/zaptel.conf; \
++	fi
+ 
+ clean: 
+ 	rm -f *.o ztcfg *.a
+-
+
+Modified: trunk/ztcfg/ztcfg.h
+===================================================================
+--- trunk/ztcfg/ztcfg.h	2004-07-19 15:39:31 UTC (rev 7)
++++ trunk/ztcfg/ztcfg.h	2004-07-21 14:34:03 UTC (rev 8)
+@@ -23,6 +23,6 @@
+ #ifndef _ZTCFG_H
+ #define _ZTCFG_H
+ 
+-#define CONFIG_FILENAME "/etc/zaptel.conf"
++#define CONFIG_FILENAME PREFIX "/etc/zaptel.conf"
+ #define MASTER_DEVICE   "/dev/zap/ctl"
+ #endif
+
+Modified: trunk/ztdummy/Makefile
+===================================================================
+--- trunk/ztdummy/Makefile	2004-07-19 15:39:31 UTC (rev 7)
++++ trunk/ztdummy/Makefile	2004-07-21 14:34:03 UTC (rev 8)
+@@ -1,10 +1,11 @@
+ # $Id: Makefile,v 1.3 2004/05/21 15:02:56 gonzo Exp $
++
+ .PATH: /sys/dev/pci
+ SRCS=ztdummy.c ztdummy.h
+ KMOD=ztdummy
+-CFLAGS+= -I../zaptel  -g
++CFLAGS+=-I../zaptel  -g
+ 
+-SRCS        += ztdummy.h 
++SRCS+=ztdummy.h 
+ 
+ load: ztdummy.ko
+ 	kldload ./ztdummy.ko
+
+
+
+From gonzo at sheep.berlios.de  Wed Jul 21 17:22:22 2004
+From: gonzo at sheep.berlios.de (Alexander Timoshenko at BerliOS)
+Date: Wed, 21 Jul 2004 17:22:22 +0200
+Subject: [Zaptel-bsd-svn] r9 - in trunk: wcfxo wcfxs zaptel
+Message-ID: <200407211522.i6LFMMtW027743@sheep.berlios.de>
+
+Author: gonzo
+Date: 2004-07-21 17:22:22 +0200 (Wed, 21 Jul 2004)
+New Revision: 9
+
+Modified:
+   trunk/wcfxo/wcfxo.c
+   trunk/wcfxs/wcfxs.c
+   trunk/zaptel/zaptel.c
+Log:
+	o 4.X compatibility fixes
+
+
+Modified: trunk/wcfxo/wcfxo.c
+===================================================================
+--- trunk/wcfxo/wcfxo.c	2004-07-21 14:34:03 UTC (rev 8)
++++ trunk/wcfxo/wcfxo.c	2004-07-21 15:22:22 UTC (rev 9)
+@@ -70,7 +70,7 @@
+ 
+ 
+ #define DEBUG 1
+-/* #define ZERO_BATT_RING 1 */
++#define ZERO_BATT_RING 1
+ /* #define JAPAN 1 */
+ #define WC_MAX_IFACES 128
+ #define WCFXO_MAX_PORTS 4
+@@ -117,7 +117,17 @@
+ #define FLAG_DOUBLE_CLOCK   (1 << 2)
+ #define FLAG_RESET_ON_AUX5  (1 << 3)
+ 
++#ifndef PCIR_BARS
++#define PCIR_BARS		0x10
++#define PCIR_BAR(x)		(PCIR_BARS + (x) * 4)
++#endif
+ 
++#ifndef MIN
++#define MIN(a,b) (((a)<(b))?(a):(b))
++#endif
++
++
++
+ /* devices list */
+ static struct wcfxo_desc wcx100p = { "Wildcard X100P",
+ 	FLAG_INVERTSER | FLAG_USE_XTAL | FLAG_DOUBLE_CLOCK };
+@@ -181,7 +191,11 @@
+ 	void				*intr_cookie;
+ 	int					ilr_enabled;
+ 
++#if __FreeBSD_version < 500000
++	dev_t				d;
++#else
+ 	struct cdev *		d;
++#endif
+ 	char 				*variety;
+ 	struct zt_span 		span;
+ 	struct zt_chan 		chan;
+@@ -254,7 +268,7 @@
+ static int monitor = 0;
+ static int quiet = 0;
+ static int boost = 0;
+-static int opermode = 0;
++static int opermode = 2;
+ static int batterycheck = 1;
+ 
+ static void wcfxo_release(struct wcfxo_softc *sc)
+@@ -385,7 +399,7 @@
+ 		reg =  sc->readregs[0x5] & 0xfe;
+ 		wcfxo_setreg(sc, 0x5, reg);
+ 
+-		reg = reg & ~0x08;
++		reg = reg | 0x08;
+ 		wcfxo_setreg(sc, 0x5, reg);
+ 
+ 		sc->offhook = 0;
+@@ -828,9 +842,9 @@
+ 	int reg17 = ((fxo_modes[opermode].lim & 0x3) << 3);
+ 	int reg18 = ((fxo_modes[opermode].vol & 0x3) << 3);
+ 
+-	wcfxo_setreg(sc, 0x16, reg16);
+-	wcfxo_setreg(sc, 0x17, reg17);
+-	wcfxo_setreg(sc, 0x18, reg18);
++	wcfxo_setreg(sc, 16, reg16);
++	wcfxo_setreg(sc, 17, reg17);
++	wcfxo_setreg(sc, 18, reg18);
+ 
+ 
+ 	/* Wait a couple of jiffies for our writes to finish */
+@@ -985,6 +999,7 @@
+ 		printf("PCI Target abort\n");
+ 		return;
+ 	}
++
+ 	if (batterycheck) {
+ 		/* Check for BATTERY from register and debounce for 8 ms */
+ 		b = sc->readregs[0xc] & 0xf;
+@@ -1123,7 +1138,11 @@
+ 	u_int16_t 				error;
+ 	u_int32_t 				command;
+ 	struct wcfxo_softc 		*sc;
++#if __FreeBSD_version < 500000
++	dev_t					d;
++#else
+ 	struct cdev				* d;
++#endif
+ 	int 					unit, rid;
+ 	struct wcfxo_ident 		*ident;
+ 	uint16_t				vid;
+@@ -1412,9 +1431,28 @@
+ 
+ static devclass_t wcfxo_devclass;
+ 
++#if __FreeBSD_version < 500000
++static driver_t *wcfxo_pci_driver_list = { &wcfxo_driver };
+ static struct driver_module_data wcfxo_pci_driver_mod = { 
+ 	0, 0,
+ 	"pci",
++	&wcfxo_pci_driver_list,
++	sizeof(wcfxo_pci_driver_list)/sizeof(wcfxo_pci_driver_list[0]),
++	&wcfxo_devclass
++};
++
++static moduledata_t wcfxo_pci_mod = {
++        "pci/wcfxo",
++        wcfxo_load,
++        &wcfxo_pci_driver_mod
++};
++
++#else
++
++
++static struct driver_module_data wcfxo_pci_driver_mod = { 
++	0, 0,
++	"pci",
+ 	(kobj_class_t) &wcfxo_driver,
+ 	&wcfxo_devclass
+ };
+@@ -1425,7 +1463,7 @@
+         &wcfxo_pci_driver_mod
+ };
+ 
+-
++#endif
+ MODULE_DEPEND(wcfxo, zaptel, 1, 1, 1);
+ /* DRIVER_MODULE(wcfxo, pci, wcfxo_driver, wcfxo_devclass, 0, 0); */
+ DECLARE_MODULE(wcfxo, wcfxo_pci_mod, SI_SUB_DRIVERS, SI_ORDER_MIDDLE);
+
+Modified: trunk/wcfxs/wcfxs.c
+===================================================================
+--- trunk/wcfxs/wcfxs.c	2004-07-21 14:34:03 UTC (rev 8)
++++ trunk/wcfxs/wcfxs.c	2004-07-21 15:22:22 UTC (rev 9)
+@@ -58,9 +58,11 @@
+ #include <dev/pci/pcivar.h>
+ #endif
+ 
++#if __FreeBSD_version < 500000
++#include <sys/kobj.h>
++#endif
+ 
+ 
+-
+ #include "proslic.h"
+ #include "wcfxs.h"
+ #include "wcfxsreg.h"
+@@ -184,14 +186,25 @@
+ #define PEGTIME		50 * 8		/* 50ms peak to peak gets us rings of 10 Hz or more */
+ #define PEGCOUNT	5		/* 5 cycles of pegging means RING */
+ 
++#ifndef PCIR_BARS
++#define PCIR_BARS		0x10
++#define PCIR_BAR(x)		(PCIR_BARS + (x) * 4)
++#endif
+ 
++#ifndef MIN
++#define MIN(a,b) (((a)<(b))?(a):(b))
++#endif
+ 
+ struct wcfxs_softc {
+ 	struct pci_dev *dev;
+ 	char *variety;
+ 	struct zt_span span;
+ 	unsigned char ios;
++#if _FreeBSD_version < 500000
++	dev_t d;
++#else
+ 	struct cdev * d; /* need to keep it for destroy_dev() */
++#endif
+ 	int usecount;
+ 	int intcount;
+ 	int dead;
+@@ -2060,7 +2073,11 @@
+ 	uint16_t				vid;
+ 	uint16_t				devid;
+ 	uint16_t				svid;
++#if _FreeBSD_version < 500000
++	dev_t					d;
++#else
+ 	struct cdev *			d;
++#endif
+ 
+ 	vid		= pci_get_vendor(dev);
+ 	devid 	= pci_get_device(dev);
+@@ -2365,7 +2382,7 @@
+  * they will give detailed info about card installed
+  */ 
+ #if __FreeBSD_version < 500000
+-int wcfxs_sys_open(struct cdev * dev, int flag, int otyp, int devtype, struct proc *threadp)
++int wcfxs_sys_open(dev_t dev, int flag, int devtype, struct proc *threadp)
+ #else
+ int wcfxs_sys_open(struct cdev * dev, int flag, int mode, struct thread *threadp)
+ #endif
+@@ -2374,7 +2391,7 @@
+ }
+ 
+ #if __FreeBSD_version < 500000
+-int wcfxs_sys_close(struct cdev * dev, int flags, int fmt, struct proc *threadp)
++int wcfxs_sys_close(dev_t dev, int flags, int fmt, struct proc *threadp)
+ #else
+ int wcfxs_sys_close(struct cdev * dev, int flags, int fmt, struct thread *threadp)
+ #endif
+@@ -2382,8 +2399,13 @@
+ 	return 0;
+ }
+ 
++#if __FreeBSD_version < 500000
+ int
++wcfxs_sys_read(dev_t dev, struct uio *uio, int flag)
++#else
++int
+ wcfxs_sys_read(struct cdev *dev, struct uio *uio, int flag)
++#endif
+ {
+ 	int size;
+ 	/* end of file */
+@@ -2445,9 +2467,27 @@
+ 
+ static devclass_t wcfxs_devclass;
+ 
++#if __FreeBSD_version < 500000
++static driver_t *wcfxs_pci_driver_list = { &wcfxs_driver };
+ static struct driver_module_data wcfxs_pci_driver_mod = { 
+ 	0, 0,
+ 	"pci",
++	&wcfxs_pci_driver_list,
++	sizeof(wcfxs_pci_driver_list)/sizeof(wcfxs_pci_driver_list[0]),
++	&wcfxs_devclass
++};
++
++static moduledata_t wcfxs_pci_mod = {
++        "pci/wcfxs",
++        wcfxs_load,
++        &wcfxs_pci_driver_mod
++};
++
++#else
++
++static struct driver_module_data wcfxs_pci_driver_mod = { 
++	0, 0,
++	"pci",
+ 	(kobj_class_t) &wcfxs_driver,
+ 	&wcfxs_devclass
+ };
+@@ -2457,9 +2497,9 @@
+         wcfxs_load,
+         &wcfxs_pci_driver_mod
+ };
++#endif
+ 
+ 
+-
+ MODULE_DEPEND(wcfxs, zaptel, 1, 1, 1);
+ /* DRIVER_MODULE(wcfxs, pci, wcfxs_driver, wcfxs_devclass, 0, 0); */
+ DECLARE_MODULE(wcfxs, wcfxs_pci_mod, SI_SUB_DRIVERS, SI_ORDER_MIDDLE);
+
+Modified: trunk/zaptel/zaptel.c
+===================================================================
+--- trunk/zaptel/zaptel.c	2004-07-21 14:34:03 UTC (rev 8)
++++ trunk/zaptel/zaptel.c	2004-07-21 15:22:22 UTC (rev 9)
+@@ -171,6 +171,12 @@
+ 					    struct proc *p));
+ static int zt_poll	__P((struct file *fp, int events,
+ 					    struct ucred *cred, struct proc *p));
++
++static int zt_stat  __P((struct file * fp, struct stat *sb, 
++						struct proc * p));
++static int zt_kqfilter __P((struct file *fp,
++						struct knote *kn));
++
+ #endif
+ 
+ /* sysctl stuff */
+@@ -260,10 +266,18 @@
+ 
+ static int debug = 0;
+ static int deftaps = 64;
++
++#if __FreeBSD_version < 500000
++static dev_t dev_channel;
++static dev_t dev_timer;
++static dev_t dev_pseudo;
++static dev_t dev_ctl;
++#else
+ static struct cdev * dev_channel;
+ static struct cdev * dev_timer;
+ static struct cdev * dev_pseudo;
+ static struct cdev * dev_ctl;
++#endif
+ 
+ /* states for transmit signalling */
+ typedef enum {ZT_TXSTATE_ONHOOK,ZT_TXSTATE_OFFHOOK,ZT_TXSTATE_START,
+@@ -1633,7 +1647,7 @@
+ }
+ 
+ #if __FreeBSD_version < 500000
+-static int zt_clone(struct file ** filep, struct cdev * dev, int flags, void *data, 
++static int zt_clone(struct file ** filep, dev_t dev, int flags, void *data, 
+ 					struct proc *p)
+ #else
+ static int zt_clone(struct file ** filep, struct cdev * dev, int flags, void *data, 
+@@ -1724,7 +1738,7 @@
+ }
+ 
+ #if __FreeBSD_version < 500000
+-static int zt_ctl_open(struct cdev * dev, int flags, struct proc * threadp)
++static int zt_ctl_open(dev_t dev, int flags, struct proc * threadp)
+ #else
+ static int zt_ctl_open(struct cdev * dev, int flags, struct thread * threadp)
+ #endif
+@@ -1738,7 +1752,7 @@
+ 
+ 	
+ #if __FreeBSD_version < 500000
+-static int zt_chan_open(struct cdev * dev, int flag, struct proc * threadp)
++static int zt_chan_open(dev_t dev, int flag, struct proc * threadp)
+ #else
+ static int zt_chan_open(struct cdev * dev, int flag, struct thread * threadp)
+ #endif
+@@ -2054,7 +2068,7 @@
+ }
+ 
+ #if __FreeBSD_version < 500000
+-static int zt_timing_open(struct cdev * dev, int flag, struct proc * threadp)
++static int zt_timing_open(dev_t dev, int flag, struct proc * threadp)
+ #else
+ static int zt_timing_open(struct cdev * dev, int flag, struct thread * threadp)
+ #endif
+@@ -2193,7 +2207,7 @@
+ 	
+ 
+ #if __FreeBSD_version < 500000
+-int zt_open(struct cdev * dev, int flag, int otyp, int devtype, struct proc *threadp)
++int zt_open(dev_t dev, int flag, int devtype, struct proc *threadp)
+ #else
+ int zt_open(struct cdev * dev, int flag, int mode, struct thread *threadp)
+ #endif
+@@ -2726,7 +2740,7 @@
+ 
+ #if __FreeBSD_version < 500000
+ int zt_stat(struct file * fp, struct stat *sb, 
+-		struct ucred * active_cred, struct proc * td)
++		struct proc * td)
+ #else
+ int zt_stat(struct file * fp, struct stat *sb, 
+ 		struct ucred * active_cred, struct thread * td)
+@@ -3257,11 +3271,13 @@
+ 		
+ 		if (!res && chans[ch.chan]->span->chanconfig)
+ 			res = chans[ch.chan]->span->chanconfig(chans[ch.chan], ch.sigtype);
++
+ 		if (chans[ch.chan]->master) {
+ 			/* Clear the master channel */
+ 			recalc_slaves(chans[ch.chan]->master);
+ 			chans[ch.chan]->nextslave = 0;
+ 		}
++
+ 		if (!res) {
+ 			chans[ch.chan]->sig = ch.sigtype;
+ 			if (chans[ch.chan]->sig == ZT_SIG_CAS)
+
+
+
+From gonzo at sheep.berlios.de  Wed Jul 21 17:26:26 2004
+From: gonzo at sheep.berlios.de (Alexander Timoshenko at BerliOS)
+Date: Wed, 21 Jul 2004 17:26:26 +0200
+Subject: [Zaptel-bsd-svn] r10 - trunk/wcfxs
+Message-ID: <200407211526.i6LFQQT5028100@sheep.berlios.de>
+
+Author: gonzo
+Date: 2004-07-21 17:26:24 +0200 (Wed, 21 Jul 2004)
+New Revision: 10
+
+Modified:
+   trunk/wcfxs/wcfxs.c
+Log:
+	o typo fix
+
+
+Modified: trunk/wcfxs/wcfxs.c
+===================================================================
+--- trunk/wcfxs/wcfxs.c	2004-07-21 15:22:22 UTC (rev 9)
++++ trunk/wcfxs/wcfxs.c	2004-07-21 15:26:24 UTC (rev 10)
+@@ -200,7 +200,7 @@
+ 	char *variety;
+ 	struct zt_span span;
+ 	unsigned char ios;
+-#if _FreeBSD_version < 500000
++#if __FreeBSD_version < 500000
+ 	dev_t d;
+ #else
+ 	struct cdev * d; /* need to keep it for destroy_dev() */
+@@ -2073,7 +2073,7 @@
+ 	uint16_t				vid;
+ 	uint16_t				devid;
+ 	uint16_t				svid;
+-#if _FreeBSD_version < 500000
++#if __FreeBSD_version < 500000
+ 	dev_t					d;
+ #else
+ 	struct cdev *			d;
+
+
+
+From gonzo at sheep.berlios.de  Wed Jul 21 18:37:35 2004
+From: gonzo at sheep.berlios.de (Alexander Timoshenko at BerliOS)
+Date: Wed, 21 Jul 2004 18:37:35 +0200
+Subject: [Zaptel-bsd-svn] r11 - trunk/zaptel
+Message-ID: <200407211637.i6LGbZNf030783@sheep.berlios.de>
+
+Author: gonzo
+Date: 2004-07-21 18:37:34 +0200 (Wed, 21 Jul 2004)
+New Revision: 11
+
+Modified:
+   trunk/zaptel/Makefile
+Log:
+	o CLEANFILES parameters added
+
+
+Modified: trunk/zaptel/Makefile
+===================================================================
+--- trunk/zaptel/Makefile	2004-07-21 15:26:24 UTC (rev 10)
++++ trunk/zaptel/Makefile	2004-07-21 16:37:34 UTC (rev 11)
+@@ -4,6 +4,7 @@
+ SRCS=zaptel.c arith.h tones.h zaptel.h
+ KMOD=zaptel
+ CFLAGS+=-g
++CLEANFILES+=gendigits tones.h
+ 
+ SRCS+=device_if.h bus_if.h vnode_if.h
+ 
+
+
+
+From gonzo at sheep.berlios.de  Wed Jul 21 18:43:17 2004
+From: gonzo at sheep.berlios.de (Alexander Timoshenko at BerliOS)
+Date: Wed, 21 Jul 2004 18:43:17 +0200
+Subject: [Zaptel-bsd-svn] r12 - in trunk: . test
+Message-ID: <200407211643.i6LGhH2S031084@sheep.berlios.de>
+
+Author: gonzo
+Date: 2004-07-21 18:43:14 +0200 (Wed, 21 Jul 2004)
+New Revision: 12
+
+Modified:
+   trunk/ChangeLog
+   trunk/Makefile
+   trunk/test/Makefile
+Log:
+	o  Misc makefile fixes
+
+
+Modified: trunk/ChangeLog
+===================================================================
+--- trunk/ChangeLog	2004-07-21 16:37:34 UTC (rev 11)
++++ trunk/ChangeLog	2004-07-21 16:43:14 UTC (rev 12)
+@@ -1,3 +1,6 @@
++19/07/2004 Alexander Timoshenko <gonzo at portaone.com>
++	o 4.X compilation sync 
++
+ 21/07/2004 Maxim Sobolev <sobomax at freebsd.org>
+ 	o use ${MAKE} instead of make;
+ 	o use consistent style for variables assignments;
+
+Modified: trunk/Makefile
+===================================================================
+--- trunk/Makefile	2004-07-21 16:37:34 UTC (rev 11)
++++ trunk/Makefile	2004-07-21 16:43:14 UTC (rev 12)
+@@ -32,5 +32,6 @@
+ 	${MAKE} -C wcfxs install
+ 	${MAKE} -C ztdummy install
+ 	${MAKE} -C ztcfg install
++	${MAKE} -C test install
+ 	
+ reload: unload load
+
+Modified: trunk/test/Makefile
+===================================================================
+--- trunk/test/Makefile	2004-07-21 16:37:34 UTC (rev 11)
++++ trunk/test/Makefile	2004-07-21 16:43:14 UTC (rev 12)
+@@ -2,6 +2,8 @@
+ 
+ LOCALBASE?=/usr/local
+ CFLAGS+=-I${LOCALBASE}/include -I../zaptel -I../ztcfg
++PREFIX?=/usr/local
++BSD_INSTALL_PROGRAM?=${INSTALL} -o root -g wheel -m 755 -s
+ 
+ all: zttool fxo_test ztmonitor zttest
+ 
+@@ -19,3 +21,9 @@
+ 
+ clean:
+ 	rm -f fxo_test ztmonitor zttool ztls zttest *.o
++
++install:
++	${BSD_INSTALL_PROGRAM} fxo_test ${PREFIX}/bin
++	${BSD_INSTALL_PROGRAM} ztmonitor ${PREFIX}/bin
++	${BSD_INSTALL_PROGRAM} zttool ${PREFIX}/bin
++	${BSD_INSTALL_PROGRAM} zttest ${PREFIX}/bin
+
+
+
+From gonzo at sheep.berlios.de  Thu Jul 22 17:09:18 2004
+From: gonzo at sheep.berlios.de (Alexander Timoshenko at BerliOS)
+Date: Thu, 22 Jul 2004 17:09:18 +0200
+Subject: [Zaptel-bsd-svn] r13 - trunk/zaptel
+Message-ID: <200407221509.i6MF9IgS011563@sheep.berlios.de>
+
+Author: gonzo
+Date: 2004-07-22 17:09:18 +0200 (Thu, 22 Jul 2004)
+New Revision: 13
+
+Added:
+   trunk/zaptel/Makefile.openbsd
+   trunk/zaptel/install-dev.sh
+   trunk/zaptel/os.h
+Modified:
+   trunk/zaptel/zaptel.c
+   trunk/zaptel/zaptel.h
+Log:
+	o First draft of OpenBSD 3.5 support
+	o OS-dependent defines moved to os.h
+
+
+
+Added: trunk/zaptel/Makefile.openbsd
+===================================================================
+--- trunk/zaptel/Makefile.openbsd	2004-07-21 16:43:14 UTC (rev 12)
++++ trunk/zaptel/Makefile.openbsd	2004-07-22 15:09:18 UTC (rev 13)
+@@ -0,0 +1,29 @@
++KSRCS=zaptel.c
++KOBJS=zaptel.o
++
++MODOBJ=mod_zaptel.o
++
++KMOD=mod_zaptel
++CFLAGS+= -D_KERNEL -I/sys
++
++all:	tones.h $(MODOBJ)
++
++tones.h: gendigits.c
++	${CC} ${CFLAGS} -o gendigits gendigits.c -lm
++	./gendigits
++
++clean:
++	rm -f $(OBJS) $(KOBJS) $(MODOBJ) $(KMOD)
++
++load:
++	modload -o $(KMOD) -e$(KMOD) $(MODOBJ)
++
++unload:
++	modunload -n $(KMOD)
++
++$(MODOBJ): $(OBJS) $(KOBJS)
++	$(LD) -r -o $(MODOBJ) $(OBJS) $(KOBJS)
++
++#
++# EOF -- This file has not been truncated
++#
+
+Added: trunk/zaptel/install-dev.sh
+===================================================================
+--- trunk/zaptel/install-dev.sh	2004-07-21 16:43:14 UTC (rev 12)
++++ trunk/zaptel/install-dev.sh	2004-07-22 15:09:18 UTC (rev 13)
+@@ -0,0 +1,9 @@
++#!/bin/sh
++MAJOR=`modstat -n zaptel | tail -1 | awk '{print $3}'`
++mkdir /dev/zap
++mknod -m 644 /dev/zap/ctl c $MAJOR 0
++mknod -m 644 /dev/zap/timer c $MAJOR 253
++mknod -m 644 /dev/zap/channel c $MAJOR 254
++mknod -m 644 /dev/zap/pseudo c $MAJOR 255
++echo "created devicec /dev/zap/*, major number $MAJOR"
++ls -l /dev/zap/*
+
+
+Property changes on: trunk/zaptel/install-dev.sh
+___________________________________________________________________
+Name: svn:executable
+   + *
+
+Added: trunk/zaptel/os.h
+===================================================================
+--- trunk/zaptel/os.h	2004-07-21 16:43:14 UTC (rev 12)
++++ trunk/zaptel/os.h	2004-07-22 15:09:18 UTC (rev 13)
+@@ -0,0 +1,87 @@
++#ifndef OS_H
++#define OS_H
++
++#ifdef _KERNEL
++
++/* Here is all the os-dependend structures definitions */
++#ifdef __OpenBSD__
++#include <sys/exec.h>
++#include <sys/lkm.h>
++#endif
++
++#ifdef __FreeBSD__
++#define timer_t struct callout
++#else
++#define timer_t struct timeout 
++#endif
++
++/* Locking stuff */
++#ifdef __FreeBSD__
++#	if __FreeBSD_version < 500000
++#		define lock_t	struct lock
++#		define ZAP_LOCK(_lock) simple_lock(&(_lock))
++#		define ZAP_UNLOCK(_lock) simple_unlock(&(_lock))
++#		define ZAP_LOCK_INIT(_lock, name) simple_lock_init(&(_lock))
++#		define ZAP_LOCK_DESTROY(_lock) do{}while(0)
++	/* lockmgr locks */
++#		define	ZAP_MGR_LOCK(_lock, flags) lockmgr(&(_lock), \
++			flags, 0, curproc)
++#		define	ZAP_MGR_DESTROY_LOCK(_lock) do{}while(0)
++#	else
++#		define lock_t	struct mtx
++#		define ZAP_LOCK(_lock)           	mtx_lock(&(_lock))
++#		define ZAP_UNLOCK(_lock)         	mtx_unlock(&(_lock))
++#		define ZAP_LOCK_INIT(_lock, name)	mtx_init(&(_lock), \
++							name, NULL, MTX_DEF)
++#		define ZAP_LOCK_DESTROY(_lock)		mtx_destroy(&(_lock))
++		/* lockmgr locks */
++#		define	ZAP_MGR_LOCK(_lock, flags) lockmgr(&(_lock), \
++							flags, 0, curthread); 
++#		define	ZAP_MGR_DESTROY_LOCK(_lock) lockdestroy(&(_lock))
++#	endif
++#else
++#	define lock_t	struct simplelock
++#	define ZAP_LOCK(_lock) simple_lock(&(_lock))
++#	define ZAP_UNLOCK(_lock) simple_unlock(&(_lock))
++#	define ZAP_LOCK_INIT(_lock, name) simple_lock_init(&(_lock))
++#	define ZAP_LOCK_DESTROY(_lock) do{}while(0)
++	/* lockmgr locks */
++#	define	ZAP_MGR_LOCK(_lock, flags) lockmgr(&(_lock), \
++		flags, 0, curproc)
++#	define	ZAP_MGR_DESTROY_LOCK(_lock) do{}while(0)
++#endif
++
++/* fileops */
++#ifdef __FreeBSD__
++#if __FreeBSD_version < 500000
++typedef int fo_rdwr_t(struct file *fp, struct uio *uio,
++			struct ucred *cred, int flags,
++			struct proc *p);
++typedef int fo_ioctl_t(struct file *fp, u_long com,
++			caddr_t data, struct proc *p);
++typedef int fo_poll_t(struct file *fp, int events,
++			struct ucred *cred, struct proc *p);
++typedef int fo_kqfilter_t(struct file *fp, struct knote *kn);
++typedef int fo_stat_t(struct file *fp, struct stat *sb,
++			struct proc *p);
++typedef int fo_close_t(struct file *fp, struct proc *p);
++#	endif
++#else /* OpenBSD */
++typedef int     fo_rdwr_t(struct file *, off_t *, struct uio *, struct ucred *);
++typedef int     fo_ioctl_t(struct file *, u_long, caddr_t, struct proc *p);
++typedef int     fo_poll_t(struct file *, int, struct proc *);
++typedef int     fo_kqfilter_t(struct file *, struct knote *);
++typedef int     fo_stat_t(struct file *, struct stat *, struct proc *);
++typedef int     fo_close_t(struct file *, struct proc *);
++#endif /* def __FreeBSD__ */
++
++/* Module stuff */
++#ifdef __OpenBSD__
++#define MOD_LOAD 		LKM_E_LOAD
++#define MOD_UNLOAD		LKM_E_UNLOAD
++#endif
++
++
++
++#endif /* _KERNEL */
++#endif /* OS_H */
+
+Modified: trunk/zaptel/zaptel.c
+===================================================================
+--- trunk/zaptel/zaptel.c	2004-07-21 16:43:14 UTC (rev 12)
++++ trunk/zaptel/zaptel.c	2004-07-22 15:09:18 UTC (rev 13)
+@@ -106,7 +106,10 @@
+ #include <sys/systm.h>
+ #include <sys/malloc.h>
+ #include <sys/kernel.h>
++#ifdef __FreeBSD__
+ #include <sys/bus.h>
++#include <sys/module.h>
++#endif
+ #include <sys/lock.h>
+ #include <sys/file.h>
+ #include <sys/filedesc.h>
+@@ -132,26 +135,40 @@
+ /* arith.h *must* be after  zaptel.h */
+ #include "arith.h"
+ 
+-#include <sys/module.h>
+-MODULE_VERSION(zaptel, 1);
+ 
++#ifdef MALLOC_DEFINE
+ MALLOC_DEFINE(M_ZAP, "zaptel", "ZapTel interface data structures");
++#else
++#define M_ZAP M_DEVBUF
++#endif
+ 
++#ifdef __FreeBSD__
++
++MODULE_VERSION(zaptel, 1);
+ static devclass_t zt_devclass;
++d_open_t		ztopen;
+ 
+-static int pulse_pause = 800;
+-static int pulse_make = 60;
+-static int pulse_break = 40;
+-
+-d_open_t		zt_open;
+-
+ #if __FreeBSD_version < 500000
+ /* PROC_LOCK stuff */
+ #define PROC_LOCK(p)    {};
+ #define PROC_UNLOCK(p)  {};
+ #endif
+ 
+-#if __FreeBSD_version >= 500000
++static struct cdevsw zt_devsw = {
++#if __FreeBSD_version >= 502103
++		.d_version = D_VERSION,
++#endif
++		.d_open			= ztopen,
++		.d_name			= "zaptel",
++		.d_maj			= ZT_MAJOR
++};
++
++
++#else /* not FreeBSD */
++cdev_decl(zt);
++static struct cdevsw zt_devsw = cdev_fd_init(1, zt);
++#endif
++
+ fo_close_t			zt_close;
+ fo_ioctl_t			zt_ioctl;
+ fo_rdwr_t			zt_read;
+@@ -159,38 +176,21 @@
+ fo_poll_t			zt_poll;
+ fo_stat_t			zt_stat;
+ fo_kqfilter_t		zt_kqfilter;
+-#else
+-static int zt_close __P((struct file *fp, struct proc *p));
+-static int zt_ioctl __P((struct file *fp, u_long com,
+-							caddr_t data, struct proc *p));
+-static int zt_read  __P((struct file *fp, struct uio *uio,
+-					    struct ucred *cred, int flags,
+-					    struct proc *p));
+-static int zt_write __P((struct file *fp, struct uio *uio,
+-					    struct ucred *cred, int flags,
+-					    struct proc *p));
+-static int zt_poll	__P((struct file *fp, int events,
+-					    struct ucred *cred, struct proc *p));
+ 
+-static int zt_stat  __P((struct file * fp, struct stat *sb, 
+-						struct proc * p));
+-static int zt_kqfilter __P((struct file *fp,
+-						struct knote *kn));
+ 
+-#endif
++static int pulse_pause = 800;
++static int pulse_make = 60;
++static int pulse_break = 40;
+ 
++static void pulse_timer(void *);
++
++
++
++#ifdef __FreeBSD__
+ /* sysctl stuff */
+ static struct sysctl_oid * zt_root, * pulse_root;
+ static struct sysctl_ctx_list zt_clist;
+-
+-static struct cdevsw zt_devsw = {
+-#if __FreeBSD_version >= 502103
+-		.d_version = D_VERSION,
+ #endif
+-		.d_open			= zt_open,
+-		.d_name			= "zaptel",
+-		.d_maj			= ZT_MAJOR
+-};
+ 
+ static struct fileops zt_fileops = {
+ 	.fo_close = zt_close,
+@@ -541,6 +541,7 @@
+ void zt_sysctl_init()
+ {
+ 
++#ifdef __FreeBSD__
+ 	sysctl_ctx_init(&zt_clist);
+ 
+ 	zt_root = SYSCTL_ADD_NODE(&zt_clist,
+@@ -573,11 +574,14 @@
+ 	SYSCTL_ADD_INT(&zt_clist, SYSCTL_CHILDREN(pulse_root),
+ 		OID_AUTO, "pause", CTLFLAG_RW, &pulse_pause, 0, 
+ 		"pause between series(milliseconds)");
++#endif
+ }
+ 
+ void zt_sysctl_destroy()
+ {
++#ifdef __FreeBSD__
+ 	sysctl_ctx_free(&zt_clist);
++#endif
+ }
+ 
+ 
+@@ -874,7 +878,9 @@
+ #endif
+ 
+ 	/* callout_drain(&chan->outbound_pulse_timer); */
++#ifdef __FreeBSD__
+ 	callout_stop(&chan->outbound_pulse_timer); 
++#endif
+ 	zt_reallocbufs(chan, 0, 0); 
+ 	ZAP_LOCK(chan->lock);
+ #ifdef CONFIG_ZAPATA_PPP
+@@ -2042,11 +2048,15 @@
+ 	chan->current_pulse = 0;
+ 	chan->pulse_state = SENDING_PAUSE;
+ 
++#ifdef __FreeBSD__
+ #if __FreeBSD_version < 500000
+ 	callout_init(&chan->outbound_pulse_timer);
+ #else
+ 	callout_init(&chan->outbound_pulse_timer, CALLOUT_MPSAFE);
+ #endif
++#else
++	timeout_set(&chan->outbound_pulse_timer, pulse_timer, chan);
++#endif
+ 
+ 	if (chan->curzone) {
+ 		/* Take cadence from tone zone */
+@@ -2191,7 +2201,7 @@
+ 		free(pseudo, M_ZAP);
+ 		return NULL;
+ 	}
+-	sprintf(pseudo->name, "Pseudo/%d", pseudo->channo);
++	snprintf(pseudo->name, 40, "Pseudo/%d", pseudo->channo);
+ 	return pseudo;	
+ }
+ 
+@@ -2207,9 +2217,9 @@
+ 	
+ 
+ #if __FreeBSD_version < 500000
+-int zt_open(dev_t dev, int flag, int devtype, struct proc *threadp)
++int ztopen(dev_t dev, int flag, int devtype, struct proc *threadp)
+ #else
+-int zt_open(struct cdev * dev, int flag, int mode, struct thread *threadp)
++int ztopen(struct cdev * dev, int flag, int mode, struct thread *threadp)
+ #endif
+ {
+ 	int unit = minor(dev);
+@@ -2257,6 +2267,7 @@
+ 
+ 
+ 
++#ifdef __FreeBSD__
+ #if __FreeBSD_version < 500000
+ int zt_read(struct file * fp, struct uio * uio, struct ucred * active_cred, 
+ 	int flags, struct proc * threadp)
+@@ -2264,6 +2275,10 @@
+ int zt_read(struct file * fp, struct uio * uio, struct ucred * active_cred, 
+ 	int flags, struct thread * threadp)
+ #endif
++#else /* not FreeBSD */
++int zt_read(struct file * fp, off_t * off, struct uio * uio, 
++	struct ucred * active_cred)
++#endif
+ {
+ 	int unit = fp_tounit(fp);
+ 	struct zt_chan *chan;
+@@ -2295,6 +2310,7 @@
+ 	return zt_chan_read(uio, unit);
+ }
+ 
++#ifdef __FreeBSD__
+ #if __FreeBSD_version < 500000
+ int zt_write(struct file * fp, struct uio * uio, struct ucred * active_cred, 
+ 	int flags, struct proc * threadp)
+@@ -2302,6 +2318,10 @@
+ int zt_write(struct file * fp, struct uio * uio, struct ucred * active_cred, 
+ 	int flags, struct thread * threadp)
+ #endif
++#else /* ! FreeBSD */
++int zt_write(struct file * fp, off_t * off, struct uio * uio, 
++	struct ucred * active_cred)
++#endif
+ {
+ 	int unit = fp_tounit(fp);
+ 	struct zt_chan *chan;
+@@ -2550,8 +2570,12 @@
+ 			/* 0.8s */
+ 			zt_sethook(chan, ZT_OFFHOOK);
+ 			chan->pulse_state = SENDING_PAUSE;
++#ifdef __FreeBSD__
+ 			callout_reset(&chan->outbound_pulse_timer, (pulse_pause*hz)/1000, 
+ 				pulse_timer, arg);
++#else
++			timeout_add(&chan->outbound_pulse_timer, (pulse_pause*hz)/1000 + 1);
++#endif
+ 			return;
+ 		}
+ 	}
+@@ -2572,8 +2596,12 @@
+ 				{
+ 					chan->current_pulse = 0;
+ 					chan->pulse_state = SENDING_PAUSE;
++#ifdef __FreeBSD__
+ 					callout_reset(&chan->outbound_pulse_timer, (500*hz)/1000, 
+ 						pulse_timer, arg);
++#else
++					timeout_add(&chan->outbound_pulse_timer, (500*hz)/1000 + 1);
++#endif
+ 					return;
+ 				}
+ 				
+@@ -2589,8 +2617,12 @@
+ 
+ 		/* 0.06s - default */
+ 		chan->pulse_state = SENDING_PULSE;
++#ifdef __FreeBSD__
+ 		callout_reset(&chan->outbound_pulse_timer, (pulse_make*hz)/1000 + 1, 
+ 				  pulse_timer, arg);
++#else
++		timeout_add(&chan->outbound_pulse_timer, (pulse_make*hz)/1000 + 1);
++#endif
+ 	} else
+ 	if(chan->pulse_state == SENDING_PULSE)
+ 	{
+@@ -2601,8 +2633,14 @@
+ 			chan->current_pulse--;
+ 
+ 		zt_sethook(chan, ZT_OFFHOOK);
++
++#ifdef __FreeBSD__
+ 		callout_reset(&chan->outbound_pulse_timer, (pulse_break*hz)/1000 + 1, 
+ 					  pulse_timer, arg);
++#else
++		timeout_add(&chan->outbound_pulse_timer, (pulse_break*hz)/1000 + 1);
++#endif
++
+ 	} 
+ 
+ }
+@@ -2733,8 +2771,12 @@
+ 
+ 	if(chan->digitmode == DIGIT_MODE_PULSE)
+ 	{
++#ifdef __FreeBSD__
+ 		callout_reset(&chan->outbound_pulse_timer, (pulse_pause*hz)/1000 + 1, 
+ 			pulse_timer, chan);
++#else
++		timeout_add(&chan->outbound_pulse_timer, (pulse_pause*hz)/1000 + 1);
++#endif
+ 	}
+ }
+ 
+@@ -3527,7 +3569,7 @@
+ 			break;
+ 
+ 		case ZT_DIAL_OP_REPLACE:
+-			strcpy(chan->txdialbuf, tdo.dialstr);
++			strncpy(chan->txdialbuf, tdo.dialstr, ZT_MAX_DTMF_BUF);
+ 			chan->dialing = 1;
+ 			__do_dial(chan);
+ 			break;
+@@ -5891,6 +5933,7 @@
+ 	return(ret);  /* return what we found */
+ }
+ 
++#ifdef __FreeBSD__
+ #if __FreeBSD_version < 500000
+ int zt_poll(struct file * fp, int events, 
+ 			struct ucred *active_ucred, struct proc *p)
+@@ -5898,6 +5941,9 @@
+ int zt_poll(struct file * fp, int events, 
+ 			struct ucred *active_ucred, struct thread *t)
+ #endif
++#else /* not FreeBSD */
++int zt_poll(struct file * fp, int events, struct proc * p)
++#endif
+ {
+ 	int unit = fp_tounit(fp);
+ 	struct zt_chan * chan;
+@@ -6326,20 +6372,26 @@
+ 
+ #endif
+ 
++#ifdef __FreeBSD__
+ static int
+ ztdev_load(module_t mod, int cmd, void *arg)
++#else
++static int
++ztdev_load( lkmtp, cmd)
++struct lkm_table        *lkmtp;
++int                     cmd;
++#endif
+ {
+ 	int  err = 0;
+ 	int x;
+ 
+-
+-
+ 	switch (cmd) {
+ 	case MOD_LOAD:
+ 		
+ 		zt_sysctl_init();
+ 		/* Do any initialization that you should do with the kernel */
+ 		/* if we make it to here, print copyright on console*/
++#ifdef __FreeBSD__
+ 		dev_ctl = make_dev(&zt_devsw, 0, UID_ROOT, GID_WHEEL, 0664, 
+ 				   "zap/ctl");
+ 		dev_timer = make_dev(&zt_devsw, ZAP_TIMER_MINOR, UID_ROOT, 
+@@ -6348,20 +6400,18 @@
+ 					   GID_WHEEL, 0664, "zap/channel");
+ 		dev_pseudo = make_dev(&zt_devsw, ZAP_PSEUDO_MINOR, UID_ROOT, 
+ 					  GID_WHEEL, 0664, "zap/pseudo");
++#endif
+ 
+ 		printf("Zapata Telephony Interface Registered on major %d\n", 
+ 			   ZT_MAJOR);
+ 
++#ifdef __FreeBSD__
+ 		zt_devclass = devclass_find("zaptel");
++#endif
+ 		zt_conv_init();
+ 		tone_zone_init();
+ 		fasthdlc_precalc();
+ 		rotate_sums();
+-		/*
+-		bzero(&zt_timer_sc, sizeof(struct zt_timer_softc));
+-		bzero(&zt_pseudo_chan_sc, sizeof(struct zt_chan_softc));
+-		bzero(&zt_chan_sc, sizeof(struct zt_chan_softc));
+-		*/
+ 
+ 		bzero(chans, sizeof(chans));
+ 		bzero(spans, sizeof(spans));
+@@ -6387,10 +6437,12 @@
+ 		ZAP_MGR_DESTROY_LOCK(chan_lock);
+ 		ZAP_MGR_DESTROY_LOCK(zone_lock);
+ 		ZAP_LOCK_DESTROY(zaptimerlock);
++#ifdef __FreeBSD__
+ 		destroy_dev(dev_ctl);
+ 		destroy_dev(dev_pseudo);
+ 		destroy_dev(dev_timer);
+ 		destroy_dev(dev_channel);
++#endif
+ 		break;		  /* Success*/
+ 
+ 	default:	/* we only understand load/unload*/
+@@ -6401,4 +6453,25 @@
+ 	return(err);
+ }
+ 
++#ifdef __FreeBSD__
+ DEV_MODULE(ztdev, ztdev_load, NULL);
++#endif
++
++#ifdef __OpenBSD__
++
++MOD_DEV("zaptel", LM_DT_CHAR, -1, &zt_devsw)
++
++/*
++ * Our external entry point. 
++ */
++
++int
++mod_zaptel(lkmtp, cmd, ver)
++        struct lkm_table *lkmtp;
++        int cmd;
++        int ver;
++{
++	DISPATCH(lkmtp, cmd, ver, ztdev_load, ztdev_load, lkm_nofunc)
++}
++
++#endif
+
+Modified: trunk/zaptel/zaptel.h
+===================================================================
+--- trunk/zaptel/zaptel.h	2004-07-21 16:43:14 UTC (rev 12)
++++ trunk/zaptel/zaptel.h	2004-07-22 15:09:18 UTC (rev 13)
+@@ -34,6 +34,8 @@
+ #if !defined(_ZAPTEL_H)
+ #define _ZAPTEL_H
+ 
++#include "os.h"
++
+ #ifdef _KERNEL
+ #include <sys/select.h>
+ #include <sys/param.h>
+@@ -49,30 +51,9 @@
+ #include "fasthdlc.h"
+ #endif /* _KERNEL */
+ 
+-/* Locking stuff */
+-#if __FreeBSD_version < 500000
+-#define lock_t	struct lock
+-#define ZAP_LOCK(_lock) simple_lock(&(_lock))
+-#define ZAP_UNLOCK(_lock) simple_unlock(&(_lock))
+-#define ZAP_LOCK_INIT(_lock, name) simple_lock_init(&(_lock))
+-#define ZAP_LOCK_DESTROY(_lock) do{}while(0)
+-/* lockmgr locks */
+-#define	ZAP_MGR_LOCK(_lock, flags) lockmgr(&(_lock), flags, 0, curproc)
+-#define	ZAP_MGR_DESTROY_LOCK(_lock) do{}while(0)
+-#else
+-#define lock_t	struct mtx
+-#define ZAP_LOCK(_lock)           mtx_lock(&(_lock))
+-#define ZAP_UNLOCK(_lock)         mtx_unlock(&(_lock))
+-#define ZAP_LOCK_INIT(_lock, name)	mtx_init(&(_lock), name, NULL, MTX_DEF)
+-#define ZAP_LOCK_DESTROY(_lock)		mtx_destroy(&(_lock))
+-/* lockmgr locks */
+-#define	ZAP_MGR_LOCK(_lock, flags) lockmgr(&(_lock), flags, 0, curthread); 
+-#define	ZAP_MGR_DESTROY_LOCK(_lock) lockdestroy(&(_lock))
+-#endif
+ 
+ 
+ 
+-
+ /* #define wait_queue_head_t void * */
+ 
+ /* Default chunk size for conferences and such -- static right now, might make
+@@ -595,7 +576,7 @@
+ 	unsigned char pulses[ZT_MAX_PULSE_QUEUE];
+ 	unsigned char current_pulse;
+ 	int	pulse_enqueued;
+-	struct callout	outbound_pulse_timer;
++	timer_t	outbound_pulse_timer;
+ 	int	pulse_state;
+ };
+ 
+
+
+
+From gonzo at sheep.berlios.de  Thu Jul 22 17:24:16 2004
+From: gonzo at sheep.berlios.de (Alexander Timoshenko at BerliOS)
+Date: Thu, 22 Jul 2004 17:24:16 +0200
+Subject: [Zaptel-bsd-svn] r14 - in trunk: . wcfxo wcfxs
+Message-ID: <200407221524.i6MFOGcf012162@sheep.berlios.de>
+
+Author: gonzo
+Date: 2004-07-22 17:24:15 +0200 (Thu, 22 Jul 2004)
+New Revision: 14
+
+Modified:
+   trunk/ChangeLog
+   trunk/wcfxo/wcfxo.c
+   trunk/wcfxs/wcfxs.c
+Log:
+	o sysctl tree destroy fix in wcfxs/wcfxo
+
+
+Modified: trunk/ChangeLog
+===================================================================
+--- trunk/ChangeLog	2004-07-22 15:09:18 UTC (rev 13)
++++ trunk/ChangeLog	2004-07-22 15:24:15 UTC (rev 14)
+@@ -1,4 +1,8 @@
+-19/07/2004 Alexander Timoshenko <gonzo at portaone.com>
++22/07/2004 Alexander Timoshenko <gonzo at portaone.com>
++	o OpenBSD inetgration draft(zaptel module compiles and loads)
++	o sysctl tree destroy fix in wcfxs/wcfxo
++
++21/07/2004 Alexander Timoshenko <gonzo at portaone.com>
+ 	o 4.X compilation sync 
+ 
+ 21/07/2004 Maxim Sobolev <sobomax at freebsd.org>
+
+Modified: trunk/wcfxo/wcfxo.c
+===================================================================
+--- trunk/wcfxo/wcfxo.c	2004-07-22 15:09:18 UTC (rev 13)
++++ trunk/wcfxo/wcfxo.c	2004-07-22 15:24:15 UTC (rev 14)
+@@ -1400,8 +1400,9 @@
+ 		break;          /* Success*/
+      	
+ 		case MOD_UNLOAD:
+-			wcfxo_sysctl_destroy();
+     		err = driver_module_handler(mod, cmd, arg);
++			if(!err)
++				wcfxo_sysctl_destroy();
+ 		break;          /* Success */
+  
+    		default: 
+
+Modified: trunk/wcfxs/wcfxs.c
+===================================================================
+--- trunk/wcfxs/wcfxs.c	2004-07-22 15:09:18 UTC (rev 13)
++++ trunk/wcfxs/wcfxs.c	2004-07-22 15:24:15 UTC (rev 14)
+@@ -2434,8 +2434,9 @@
+ 		break;          /* Success*/
+      	
+ 		case MOD_UNLOAD:
+-			wcfxs_sysctl_destroy();
+     		err = driver_module_handler(mod, cmd, arg);
++			if(!err)
++				wcfxs_sysctl_destroy();
+ 		break;          /* Success */
+  
+    		default: 
+
+
+
+From gonzo at sheep.berlios.de  Fri Jul 23 13:42:22 2004
+From: gonzo at sheep.berlios.de (Alexander Timoshenko at BerliOS)
+Date: Fri, 23 Jul 2004 13:42:22 +0200
+Subject: [Zaptel-bsd-svn] r15 - in trunk: . wcfxo
+Message-ID: <200407231142.i6NBgMBo021139@sheep.berlios.de>
+
+Author: gonzo
+Date: 2004-07-23 13:42:21 +0200 (Fri, 23 Jul 2004)
+New Revision: 15
+
+Modified:
+   trunk/ChangeLog
+   trunk/wcfxo/wcfxo.c
+Log:
+    o X101P power status displayin in cat /dev/wcfxo0
+        (poor man's /proc emulation)
+
+
+
+Modified: trunk/ChangeLog
+===================================================================
+--- trunk/ChangeLog	2004-07-22 15:24:15 UTC (rev 14)
++++ trunk/ChangeLog	2004-07-23 11:42:21 UTC (rev 15)
+@@ -1,3 +1,7 @@
++23/07/2004 Alexander Timoshenko <gonzo at portaone.com>
++	o X101P power status displayin in cat /dev/wcfxo0
++		(poor man's /proc emulation)
++
+ 22/07/2004 Alexander Timoshenko <gonzo at portaone.com>
+ 	o OpenBSD inetgration draft(zaptel module compiles and loads)
+ 	o sysctl tree destroy fix in wcfxs/wcfxo
+
+Modified: trunk/wcfxo/wcfxo.c
+===================================================================
+--- trunk/wcfxo/wcfxo.c	2004-07-22 15:24:15 UTC (rev 14)
++++ trunk/wcfxo/wcfxo.c	2004-07-23 11:42:21 UTC (rev 15)
+@@ -71,7 +71,7 @@
+ 
+ #define DEBUG 1
+ #define ZERO_BATT_RING 1
+-/* #define JAPAN 1 */
++#define JAPAN 1
+ #define WC_MAX_IFACES 128
+ #define WCFXO_MAX_PORTS 4
+ 
+@@ -127,6 +127,7 @@
+ #endif
+ 
+ 
++static char * card_configuration = 0;
+ 
+ /* devices list */
+ static struct wcfxo_desc wcx100p = { "Wildcard X100P",
+@@ -250,18 +251,29 @@
+ static int	wcfxo_detach(device_t );
+ static void wcfxo_sysctl_init(void);
+ static void wcfxo_sysctl_destroy(void);
++void		wcfxo_generate_description(struct wcfxo_softc *sc);
+ 
+ /* sysctl stuff */
+ extern struct sysctl_oid * zt_root;
+ static struct sysctl_oid * wcfxo_root;
+ static struct sysctl_ctx_list wcfxo_clist;
+ 
++/* syscall handlers */
++d_open_t wcfxo_sys_open;
++d_close_t wcfxo_sys_close;
++d_read_t wcfxo_sys_read;
++
++
++
+ /* Character device entry points */
+ static struct cdevsw wcfxo_cdevsw = {
+ #if __FreeBSD_version >= 502103
+ 	.d_version = D_VERSION,
+ #endif
+ 	.d_name =   "wcfxo",
++	.d_open  =   wcfxo_sys_open,
++	.d_close =   wcfxo_sys_close,
++	.d_read  =   wcfxo_sys_read
+ };
+ 
+ static int debug = 0;
+@@ -327,8 +339,19 @@
+ 	return -1;
+ }
+ 
++void wcfxo_generate_description(struct wcfxo_softc *sc)
++{
++	if(!card_configuration)
++		card_configuration = malloc(80 + 40 +  25 + 20, M_DEVBUF, M_NOWAIT);
++	snprintf(card_configuration, 120 + 25, "%s\n%s\n", 
++					sc->span.name, sc->span.desc);
++	snprintf(card_configuration, 120 + 25, 
++					"%sPort #%d -- FXO [%s]\n",
++					card_configuration, 1, sc->span.alarms ? "off" : "on");
++}
+ 
+ 
++
+ static int wcfxo_watchdog(struct zt_span *span, int event)
+ {
+ 	printf("FXO: Restarting DMA\n");
+@@ -1035,6 +1058,7 @@
+ 				(!sc->span.alarms)) {
+ 				sc->span.alarms = ZT_ALARM_RED;
+ 				zt_alarm_notify(&sc->span);
++				wcfxo_generate_description(sc);
+ 			}
+ 		} else if (b == 0xf) {
+ 			if (!sc->battery && !sc->battdebounce) {
+@@ -1056,6 +1080,7 @@
+ 				if (sc->span.alarms) {
+ 					sc->span.alarms = 0;
+ 					zt_alarm_notify(&sc->span);
++					wcfxo_generate_description(sc);
+ 				}
+ 			} else if (sc->battery)
+ 				sc->battdebounce = BATT_DEBOUNCE;
+@@ -1081,6 +1106,7 @@
+ 		if(sc->span.alarms) {
+ 			sc->span.alarms = 0;
+ 			zt_alarm_notify(&sc->span);
++			wcfxo_generate_description(sc);
+ 		}
+ 	}
+ 
+@@ -1272,9 +1298,10 @@
+ 		error = EIO;
+ 		goto fail;
+ 	}
+-	/* wcfxo_disable_interrupts(sc); */
+ 
+ 	wcfxo_set_daa_mode(sc);
++	wcfxo_generate_description(sc);
++
+ 	printf("Found a Wildcard FXO: %s\n", sc->variety);
+ 	printf("ZapTel device loaded.\n");
+ 
+@@ -1350,6 +1377,11 @@
+ 		if(sc->d)
+ 			destroy_dev(sc->d);
+ 
++		if(card_configuration)
++		{
++			free(card_configuration, M_DEVBUF);
++			card_configuration = 0;
++		}
+ 		printf("ZapTel detach!\n");
+ 	}
+ 	return (0);
+@@ -1388,6 +1420,54 @@
+ 	return (0);
+ }
+ 
++/* 
++ * syscall routines 
++ * We will use them to emulate Linux /proc behaviour --
++ * they will give detailed info about card installed
++ */ 
++#if __FreeBSD_version < 500000
++int wcfxo_sys_open(dev_t dev, int flag, int devtype, struct proc *threadp)
++#else
++int wcfxo_sys_open(struct cdev * dev, int flag, int mode, struct thread *threadp)
++#endif
++{
++	return 0;
++}
++
++#if __FreeBSD_version < 500000
++int wcfxo_sys_close(dev_t dev, int flags, int fmt, struct proc *threadp)
++#else
++int wcfxo_sys_close(struct cdev * dev, int flags, int fmt, struct thread *threadp)
++#endif
++{
++	return 0;
++}
++
++#if __FreeBSD_version < 500000
++int
++wcfxo_sys_read(dev_t dev, struct uio *uio, int flag)
++#else
++int
++wcfxo_sys_read(struct cdev *dev, struct uio *uio, int flag)
++#endif
++{
++	int size;
++	/* end of file */
++	if(uio->uio_offset < 0)
++		return -1;
++
++	if(!card_configuration)
++		return 0;
++	
++    if(uio->uio_offset >= strlen(card_configuration))
++		return 0;
++
++	size = MIN(uio->uio_resid, strlen(card_configuration) - uio->uio_offset);
++	return uiomove(card_configuration +  uio->uio_offset, size, uio);
++}
++
++
++
+ static int
+ wcfxo_load(module_t mod, int cmd, void *arg)
+ {
+
+
+
+From gonzo at sheep.berlios.de  Fri Jul 23 15:15:30 2004
+From: gonzo at sheep.berlios.de (Alexander Timoshenko at BerliOS)
+Date: Fri, 23 Jul 2004 15:15:30 +0200
+Subject: [Zaptel-bsd-svn] r16 - in trunk: . wcfxs
+Message-ID: <200407231315.i6NDFUm2025341@sheep.berlios.de>
+
+Author: gonzo
+Date: 2004-07-23 15:15:30 +0200 (Fri, 23 Jul 2004)
+New Revision: 16
+
+Modified:
+   trunk/ChangeLog
+   trunk/wcfxs/wcfxs.c
+Log:
+    o wcfxs sysctl oids handling fix
+    o TDM FXO ports power status displaying in `cat /dev/wcfxs0`
+
+
+
+Modified: trunk/ChangeLog
+===================================================================
+--- trunk/ChangeLog	2004-07-23 11:42:21 UTC (rev 15)
++++ trunk/ChangeLog	2004-07-23 13:15:30 UTC (rev 16)
+@@ -1,5 +1,7 @@
+ 23/07/2004 Alexander Timoshenko <gonzo at portaone.com>
+-	o X101P power status displayin in cat /dev/wcfxo0
++	o wcfxs sysctl oids handling fix
++	o X101P power status displaying in `cat /dev/wcfxo0`
++	o TDM FXO ports power status displaying in `cat /dev/wcfxs0`
+ 		(poor man's /proc emulation)
+ 
+ 22/07/2004 Alexander Timoshenko <gonzo at portaone.com>
+
+Modified: trunk/wcfxs/wcfxs.c
+===================================================================
+--- trunk/wcfxs/wcfxs.c	2004-07-23 11:42:21 UTC (rev 15)
++++ trunk/wcfxs/wcfxs.c	2004-07-23 13:15:30 UTC (rev 16)
+@@ -279,6 +279,7 @@
+ static struct wcfxs_desc wcfxse = { "Wildcard TDM400P REV E/F", 0 };
+ 
+ static void wcfxs_release(struct wcfxs_softc *sc);
++void wcfxs_generate_description(struct wcfxs_softc * sc);
+ 
+ static int debug = 0;
+ static int robust = 0;
+@@ -395,6 +396,42 @@
+ #endif
+ 
+ 
++void wcfxs_generate_description(struct wcfxs_softc * sc)
++{
++	int x;
++	/* prepare description */
++
++	/* 80(name) + 40(description) + 25 per port description 
++	 * + 20 just in case
++	 */
++	if(!card_configuration)
++		card_configuration = malloc(80 + 40 +  sc->cards*25 + 20, 
++						M_TDM, M_NOWAIT);
++	snprintf(card_configuration, 120 + sc->cards*25, "%s\n%s\n", 
++					sc->span.name, sc->span.desc);
++	for( x = 0; x < sc->cards; x++)
++	{
++			if(sc->cardflag & (1 << x))
++			{
++
++				if(sc->chans[x].sigcap & ZT_SIG_FXSKS) 	
++					snprintf(card_configuration, 120 + sc->cards*25, 
++									"%sPort #%d -- FXO [%s]\n",
++									card_configuration, x+1, sc->mod.fxo.battery[x] ? "on" : "off");
++				else
++					snprintf(card_configuration, 120 + sc->cards*25, 
++									"%sPort #%d -- FXS\n",
++									card_configuration, x+1);
++			} else
++			{
++					snprintf(card_configuration, 120 + sc->cards*25, 
++									"%sPort #%d -- None\n",
++									card_configuration, x+1);
++			}
++	}
++}
++
++
+ static __inline void wcfxs_receiveprep(struct wcfxs_softc *sc, unsigned char ints)
+ {
+ 	volatile unsigned int *readchunk;
+@@ -1403,8 +1440,9 @@
+ #endif
+ 		if (sc->mod.fxo.battery[card] && !sc->mod.fxo.battdebounce[card]) {
+ 			if (debug)
+-				printf("NO BATTERY!\n");
++				printf("[%d] NO BATTERY!\n", card);
+ 			sc->mod.fxo.battery[card] =  0;
++			wcfxs_generate_description(sc);
+ #ifdef	JAPAN
+ 			if ((!sc->ohdebounce) && sc->offhook) {
+ 				zt_hooksig(&sc->chans[card], ZT_RXSIG_ONHOOK);
+@@ -1423,7 +1461,7 @@
+ 	} else if (abs(b) > BATT_THRESH) {
+ 		if (!sc->mod.fxo.battery[card] && !sc->mod.fxo.battdebounce[card]) {
+ 			if (debug)
+-				printf("BATTERY!\n");
++				printf("[%d] BATTERY!\n", card);
+ #ifdef	ZERO_BATT_RING
+ 			if (sc->onhook) {
+ 				sc->onhook = 0;
+@@ -1437,6 +1475,7 @@
+ 			sc->mod.fxo.battery[card] = 1;
+ 			sc->mod.fxo.nobatttimer[card] = 0;
+ 			sc->mod.fxo.battdebounce[card] = BATT_DEBOUNCE;
++			wcfxs_generate_description(sc);
+ 		} else if (sc->mod.fxo.battery[card])
+ 			sc->mod.fxo.battdebounce[card] = BATT_DEBOUNCE;
+ 	} else {
+@@ -2207,35 +2246,7 @@
+ 
+ 	wcfxs_post_initialize(sc);
+ 
+-	/* prepare description */
+-
+-	/* 80(name) + 40(description) + 25 per port description 
+-	 * + 20 just in case
+-	 */
+-	card_configuration = malloc(80 + 40 +  sc->cards*25 + 20, M_TDM, M_NOWAIT);
+-	snprintf(card_configuration, 120 + sc->cards*25, "%s\n%s\n", 
+-					sc->span.name, sc->span.desc);
+-	for( x = 0; x < sc->cards; x++)
+-	{
+-			if(sc->cardflag & (1 << x))
+-			{
+-
+-				if(sc->chans[x].sigcap & ZT_SIG_FXSKS) 	
+-					snprintf(card_configuration, 120 + sc->cards*25, 
+-									"%sPort #%d -- FXO\n",
+-									card_configuration, x+1);
+-				else
+-					snprintf(card_configuration, 120 + sc->cards*25, 
+-									"%sPort #%d -- FXS\n",
+-									card_configuration, x+1);
+-			} else
+-			{
+-					snprintf(card_configuration, 120 + sc->cards*25, 
+-									"%sPort #%d -- None\n",
+-									card_configuration, x+1);
+-			}
+-	}
+-
++	wcfxs_generate_description(sc);
+ 	/* Initialize Write/Buffers to all blank data */
+ 	memset((void *)(sc->wc_ldata.wc_writechunk), 0, 
+ 			ZT_MAX_CHUNKSIZE * 2 * 2 * 2 * 4);
+@@ -2249,11 +2260,6 @@
+ 	/* Start DMA */
+ 	wcfxs_start_dma(sc);
+ 
+-	/* init sysctl oid's */
+-	wcfxs_sysctl_init();
+-
+-
+-
+ 	printf("Found a Wildcard TDM: %s (%d modules)\n", sc->variety, sc->cards);
+ 	return 0;
+ fail:
+@@ -2322,8 +2328,6 @@
+ 		else
+ 			sc->dead = 1;
+ 
+-		wcfxs_sysctl_destroy();
+-
+ 		if(sc->d)
+ 			destroy_dev(sc->d);
+ 
+
+
+
+From jacs at sheep.berlios.de  Fri Jul 23 18:46:10 2004
+From: jacs at sheep.berlios.de (Chris Stenton at BerliOS)
+Date: Fri, 23 Jul 2004 18:46:10 +0200
+Subject: [Zaptel-bsd-svn] r17 - in trunk: . zaptel
+Message-ID: <200407231646.i6NGkA0Z001382@sheep.berlios.de>
+
+Author: jacs
+Date: 2004-07-23 18:46:09 +0200 (Fri, 23 Jul 2004)
+New Revision: 17
+
+Modified:
+   trunk/Makefile
+   trunk/README
+   trunk/zaptel/zaptel.c
+   trunk/zaptel/zaptel.h
+Log:
+PING PONG timer added to zaptel
+Ability to set O_NONBLOCK for pseudo channel
+Can be compiled and run with asterisk head
+
+
+
+Modified: trunk/Makefile
+===================================================================
+--- trunk/Makefile	2004-07-23 13:15:30 UTC (rev 16)
++++ trunk/Makefile	2004-07-23 16:46:09 UTC (rev 17)
+@@ -8,11 +8,19 @@
+ 	${MAKE} -C ztcfg
+ 	${MAKE} -C test
+ 
++ztdload:
++	${MAKE} -C zaptel load
++	${MAKE} -C ztdummy load
++
+ load:
+ 	${MAKE} -C zaptel load
+ 	${MAKE} -C wcfxs load
+ 	${MAKE} -C wcfxo load
+ 
++ztdunload:
++	${MAKE} -C ztdummy unload
++	${MAKE} -C zaptel unload
++
+ unload:
+ 	${MAKE} -C wcfxo unload
+ 	${MAKE} -C wcfxs unload
+@@ -33,5 +41,7 @@
+ 	${MAKE} -C ztdummy install
+ 	${MAKE} -C ztcfg install
+ 	${MAKE} -C test install
+-	
++
+ reload: unload load
++
++ztdreload: ztdunload ztdload
+
+Modified: trunk/README
+===================================================================
+--- trunk/README	2004-07-23 13:15:30 UTC (rev 16)
++++ trunk/README	2004-07-23 16:46:09 UTC (rev 17)
+@@ -16,6 +16,20 @@
+ 	bash# ./ztcfg
+ 	bash# cd ..
+ 
++For ztdummy dummy driver recompile and install your kernel with "options  HZ=1000"
++added then perform the following steps
++
++        bash$ su
++        bash# make
++        bash# make install
++        bash# make ztdload
++
++
++To unload use the command "make ztdunload"
++
++If you are going to build asterisk head then copy zaptel/zaptel.h to /usr/local/include/zaptel.h.
++Do not use the Linux zaptel.h header file.
++
+ Also there is zttool and ztmonitor sources attached in test/ directory along 
+ with fxo_test - generic dialing tool. For the moment fxo_test has only very 
+ schematic functionality - hook to on, hook to off, ATDP ;)
+
+Modified: trunk/zaptel/zaptel.c
+===================================================================
+--- trunk/zaptel/zaptel.c	2004-07-23 13:15:30 UTC (rev 16)
++++ trunk/zaptel/zaptel.c	2004-07-23 16:46:09 UTC (rev 17)
+@@ -122,6 +122,7 @@
+ #include <sys/stat.h>
+ 
+ #include <sys/sysctl.h>
++#include <sys/filio.h>
+ 
+ #include "zconfig.h"
+ 
+@@ -388,6 +389,7 @@
+ static struct zt_timer {
+ 	int ms;			/* Countdown */
+ 	int pos;		/* Position */
++	int ping;		/* Whether we've been ping'd */
+ 	int tripped;	/* Whether we're tripped */
+ 	struct zt_timer *next;	/* Linked list */
+ 	struct selinfo sel;
+@@ -1520,12 +1522,17 @@
+ 					pass = 512;
+ 				for (x=0;x<pass;x++)
+ 					lindata[x] = ZT_XLAW(chan->readbuf[chan->outreadbuf][x + pos], chan);
+-				if ((rv = uiomove((caddr_t)lindata, pass << 1, 
+-						  uio)) != 0)
++				if ((rv = uiomove((caddr_t)lindata, pass << 1, uio)) != 0)
+ 					return EFAULT;
+ 				left -= pass;
+ 				pos += pass;
+ 			}
++			/* linear is only even so */
++			/* if only one char left in read buffer then dump it */
++			if (uio->uio_resid  == 1) {
++				if ((rv = uiomove((caddr_t)lindata, 1, uio)) != 0)
++					return EFAULT;
++			}
+ 		}
+ 	} else {
+ 		if (amnt > chan->readn[chan->outreadbuf]) 
+@@ -1624,6 +1631,12 @@
+ 					chan->writebuf[chan->inwritebuf][x + pos] = ZT_LIN2X(lindata[x], chan);
+ 				pos += pass;
+ 			}
++			/* linear is only even so */
++			/* if only one char left in write buffer then dump it */
++			if (uio->uio_resid  == 1) {
++				if ((rv = uiomove((caddr_t)lindata, 1, uio)) != 0)
++					return EFAULT;
++			}
+ 			chan->writen[chan->inwritebuf] = amnt >> 1;
+ 		} else {
+ 			if ((rv = uiomove((caddr_t)chan->writebuf[chan->inwritebuf], amnt, uio)) != 0)
+@@ -2909,6 +2922,29 @@
+ 		timer->tripped -= j;
+ 		ZAP_UNLOCK(zaptimerlock);
+ 		break;
++	case ZT_GETEVENT:  /* Get event on queue */
++		j = ZT_EVENT_NONE;
++		ZAP_LOCK(zaptimerlock);
++		  /* set up for no event */
++		if (timer->tripped)
++			j = ZT_EVENT_TIMER_EXPIRED;
++		if (timer->ping)
++			j = ZT_EVENT_TIMER_PING;
++		ZAP_UNLOCK(zaptimerlock);
++		bcopy(&j, arg, sizeof(int));
++		break;
++	case ZT_TIMERPING:
++		ZAP_LOCK(zaptimerlock);
++		timer->ping = 1;		
++		/* wake_up_interruptible(&timer->sel); */
++		selwakeup(&timer->sel);
++		ZAP_UNLOCK(zaptimerlock);
++		break;
++	case ZT_TIMERPONG:
++		ZAP_LOCK(zaptimerlock);
++		timer->ping = 0;
++		ZAP_UNLOCK(zaptimerlock);
++		break;
+ 	default:
+ 		return ENOTTY;
+ 	}
+@@ -3552,7 +3588,7 @@
+ 		ZAP_LOCK(chan->lock);
+ 		j = chan->dialing;
+ 		ZAP_UNLOCK(chan->lock);
+-		bcopy(arg, &j, sizeof(int));
++		bcopy(&j, arg, sizeof(int));
+ 		return 0;
+ 	case ZT_DIAL:
+ 		bcopy(arg, &tdo, sizeof(tdo));
+@@ -4416,6 +4452,14 @@
+ 			printf("No pseudo channel structure to read?\n");
+ 			return EINVAL;
+ 		}
++		/* Non Blocking etc not sure if this should be here for pseudo only or more general */
++		/* chans[chan->channo]->file->f_flag set at a higher level so just return */
++		switch (cmd) {
++		case FIOASYNC:
++			return 0;
++		case FIONBIO:
++			return 0;
++		}
+ 		return zt_chanandpseudo_ioctl(fp, cmd, arg, chan->channo);
+ 	}
+ 	return zt_chan_ioctl(fp, cmd, arg, unit);
+@@ -5880,7 +5924,7 @@
+ 	if (timer) {
+ 		
+ 		ZAP_LOCK(zaptimerlock);
+-		if (timer->tripped) 
++		if (timer->tripped || timer->ping) 
+ 			ret |= events & POLLPRI;
+ 		else
+ #if __FreeBSD_version < 500000
+@@ -5890,7 +5934,7 @@
+ #endif
+ 		ZAP_UNLOCK(zaptimerlock);
+ 	} else
+-		ret = 0;
++		ret = EINVAL;
+ 	return ret;
+ }
+ 
+
+Modified: trunk/zaptel/zaptel.h
+===================================================================
+--- trunk/zaptel/zaptel.h	2004-07-23 13:15:30 UTC (rev 16)
++++ trunk/zaptel/zaptel.h	2004-07-23 16:46:09 UTC (rev 17)
+@@ -201,9 +201,10 @@
+ #define ZT_SIG_FXOGS	((1 << 4) | __ZT_SIG_FXO)	/* FXO, Groupstart */
+ #define ZT_SIG_FXOKS	((1 << 5) | __ZT_SIG_FXO)	/* FXO, Kewlstart */
+ 
+-
+ /* The following are all variations on clear channel */
+ 
++#define __ZT_SIG_DACS	 (1 << 16)
++
+ #define ZT_SIG_CLEAR	 (1 << 7)					/* Clear channel */
+ #define ZT_SIG_HDLCRAW	((1 << 8)  | ZT_SIG_CLEAR)	/* Raw unchecked HDLC */
+ #define ZT_SIG_HDLCFCS	((1 << 9)  | ZT_SIG_HDLCRAW)	/* HDLC with FCS calculation */
+@@ -211,7 +212,9 @@
+ #define ZT_SIG_SLAVE	 (1 << 11) 					/* Slave to another channel */
+ #define	ZT_SIG_SF	 (1 << 14)			/* Single Freq. tone only, no sig bits */
+ #define ZT_SIG_CAS	 (1 << 15)			/* Just get bits */
+-#define ZT_SIG_DACS	((1 << 16) | ZT_SIG_CLEAR)	/* Cross connect */
++#define ZT_SIG_DACS	(__ZT_SIG_DACS | ZT_SIG_CLEAR)	/* Cross connect */
++#define ZT_SIG_EM_E1	 (1 << 17)			/* E1 E&M Variation */
++#define ZT_SIG_DACS_RBS	 ((1 << 18) | __ZT_SIG_DACS)	/* Cross connect w/ RBS */
+ 
+ #define ZT_SIG_EM	(1 << 6)		/* Ear & Mouth (E&M) */
+ 
+@@ -960,6 +963,13 @@
+ /* Ret value for the beginning of a pulse coming on its way */
+ #define ZT_EVENT_PULSE_START 14
+ 
++/* Timer event -- timer expired */
++#define ZT_EVENT_TIMER_EXPIRED 15
++
++/* Timer event -- ping ready */
++#define ZT_EVENT_TIMER_PING 16
++
++
+ #define ZT_EVENT_PULSEDIGIT (1 << 16)   /* This is OR'd with the digit received */
+ #define ZT_EVENT_DTMFDIGIT  (1 << 17)   /* Ditto for DTMF */
+ 
+@@ -1286,9 +1296,19 @@
+ #define	ZT_ONHOOKTRANSFER		_IOW (ZT_CODE, 51, int)
+ 
+ /*
++ * Queue Ping
++ */
++#define ZT_TIMERPING _IOW (ZT_CODE, 52, int) 
++
++/*
++ * Acknowledge ping
++ */
++#define ZT_TIMERPONG _IOW (ZT_CODE, 53, int)
++
++/*
+  * Get Channel Configuration
+  */
+-#define	ZT_GET_CHANCONFIG	_IOWR (ZT_CODE, 52, struct zt_chanconfig)
++#define	ZT_GET_CHANCONFIG	_IOWR (ZT_CODE, 54, struct zt_chanconfig)
+ 
+ 
+ 
+
+
+
+From awedlottoinfo at netscape.net  Wed Jul 28 18:50:56 2004
+From: awedlottoinfo at netscape.net (AWED INTERNATIONAL LOTTO.BV.)
+Date: Wed, 28 Jul 2004 09:50:56 -0700
+Subject: [Zaptel-bsd-svn] AWARD WINNING NOTIFICATION/PRIZE PROMO.
+Message-ID: <200407281651.i6SGox616790@bat.berlios.de>
+
+  
+AWED INTERNATIONAL LOTTO.BV PROMO/PRIZE AWARD DEPARTMENT.
+ADDRESS:De Smet de Naeyerlaan,4 b3, 1090,Brussels - Belgium.
+REF: AIL/74859/037/04
+BATCH: 7599/75937467/HM
+ATTENTION:
+  RE / AWARD NOTIFICATION / PROCESSING ADVICE: AL
+We are pleased to inform you of the announcement today,28th July 2004 of
+winners of the SCIENTIFIC GAME PROMO LOTTERY;BELGIUM /
+INTERNATIONAL, PROGRAMS held on 24th July 2004. Your email address
+attached to ticket number 65-782893, with serial number 49207 drew the
+lucky numbers 31-44-73-42-49-21, and consequently won the lottery in the 1st
+category. You have therefore been approved of a lump sum pay out of
+US$500,000.00 (FIVE HUNDRED THOUSAND UNITED STATE DOLLARS) in credited to
+file REF NO. AIL/7585021-47/04. This is from total prize money of
+US$2,500,000.00 shared among the international winners in our 1st -5th
+categories. All participants were selected through a computer ballot system
+drawn form 25,000 company email addresses and 30,000,000 individual email
+addresses from Australia, New Zealand, America, Europe, North America and
+Asia as part of International Promotions Program, which is conducted
+annually. CONGRATULATIONS! Your fund is now in custody of a financial
+company insured in your FILE REFERENCE. Due to the mix up of some
+numbers and names, we ask that you keep this award strictly from public
+notice until your claim has been processed and your money remitted to your
+account. This is part of our security protocol to avoid double claiming or
+unscrupulous acts by participants of this program. This lottery program was
+promoted by our group of philanthropist headed by Mr. Bill Gates. We hope
+with part of your prize, you will participate in our end of year high stakes of
+US$10,000,000 million Dollars International Lottery.
+To begin your claim, please contact your file/claim officer:
+MR.HARRY BUSSI,of AWED INTERNATIONAL LOTTO.BV
+(BRUSSELS - BELGIUM).
+On TEL: 0032-475-521-802.
+Please be informed that NON RESIDENCE of BELGIUM will be required
+to procure an Affidavit of lotto claim papers/Court clearance certificate
+from the Court prior to award payment policy of the Gaming Board of
+Belgium and required by the paying Financial  Company.
+Please be aware that your Paying Authority will Effect Payment Swiftly upon
+satisfactory Report, Verifications and validation provided by this
+processing Agent. For due processing and remittance of your winning prize to
+designated account of your choice, please treat as urgent.
+Remember, all prize money must be claimed not later than 11th August 2004.
+After this date, all funds will be returned as unclaimed.
+NOTE: In order to avoid unnecessary delay and complications, please remember
+to quote your reference and batch numbers in every one of your
+correspondences with your agent. Furthermore, should there be any change of
+your address, do inform your claims agent as soon as possible.
+PLEASE NOTE THAT EVERY REPLY SHOULD BE SENT AS AN E-MAIL ATTACHMENT TO
+ENHANCE ELIGIBLE VIEW.
+Congratulations once again from our team of staff and thank you for being part of our promotional program. Note: Anybody under the age of 18 is AUTOMATICALY DISQUALIFIED.
+
+
+Sincerely,
+
+Veronique Jan Bollen.(Mrs)
+
+(Lottery Coodinator)
+  
+

@@ -1,0 +1,230 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<HTML>
+ <HEAD>
+   <TITLE> [Zaptel-bsd-svn] r16 - in trunk: . wcfxs
+   </TITLE>
+   <LINK REL="Index" HREF="http://lists.berlios.de/pipermail/zaptel-bsd-svn/2004-July/index.html" >
+   <LINK REL="made" HREF="mailto:zaptel-bsd-svn%40lists.berlios.de?Subject=Re%3A%20%5BZaptel-bsd-svn%5D%20r16%20-%20in%20trunk%3A%20.%20wcfxs&In-Reply-To=%3C200407231315.i6NDFUm2025341%40sheep.berlios.de%3E">
+   <META NAME="robots" CONTENT="index,nofollow">
+   <style type="text/css">
+       pre {
+           white-space: pre-wrap;       /* css-2.1, curent FF, Opera, Safari */
+           }
+   </style>
+   <META http-equiv="Content-Type" content="text/html; charset=us-ascii">
+   <LINK REL="Previous"  HREF="000009.html">
+   <LINK REL="Next"  HREF="000011.html">
+ </HEAD>
+ <BODY BGCOLOR="#ffffff">
+   <H1>[Zaptel-bsd-svn] r16 - in trunk: . wcfxs</H1>
+    <B>Alexander Timoshenko at BerliOS</B> 
+    <A HREF="mailto:zaptel-bsd-svn%40lists.berlios.de?Subject=Re%3A%20%5BZaptel-bsd-svn%5D%20r16%20-%20in%20trunk%3A%20.%20wcfxs&In-Reply-To=%3C200407231315.i6NDFUm2025341%40sheep.berlios.de%3E"
+       TITLE="[Zaptel-bsd-svn] r16 - in trunk: . wcfxs">gonzo at sheep.berlios.de
+       </A><BR>
+    <I>Fri Jul 23 15:15:30 CEST 2004</I>
+    <P><UL>
+        <LI>Previous message: <A HREF="000009.html">[Zaptel-bsd-svn] r15 - in trunk: . wcfxo
+</A></li>
+        <LI>Next message: <A HREF="000011.html">[Zaptel-bsd-svn] r17 - in trunk: . zaptel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#10">[ date ]</a>
+              <a href="thread.html#10">[ thread ]</a>
+              <a href="subject.html#10">[ subject ]</a>
+              <a href="author.html#10">[ author ]</a>
+         </LI>
+       </UL>
+    <HR>  
+<!--beginarticle-->
+<PRE>Author: gonzo
+Date: 2004-07-23 15:15:30 +0200 (Fri, 23 Jul 2004)
+New Revision: 16
+
+Modified:
+   trunk/ChangeLog
+   trunk/wcfxs/wcfxs.c
+Log:
+    o wcfxs sysctl oids handling fix
+    o TDM FXO ports power status displaying in `cat /dev/wcfxs0`
+
+
+
+Modified: trunk/ChangeLog
+===================================================================
+--- trunk/ChangeLog	2004-07-23 11:42:21 UTC (rev 15)
++++ trunk/ChangeLog	2004-07-23 13:15:30 UTC (rev 16)
+@@ -1,5 +1,7 @@
+ 23/07/2004 Alexander Timoshenko &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/zaptel-bsd-svn">gonzo at portaone.com</A>&gt;
+-	o X101P power status displayin in cat /dev/wcfxo0
++	o wcfxs sysctl oids handling fix
++	o X101P power status displaying in `cat /dev/wcfxo0`
++	o TDM FXO ports power status displaying in `cat /dev/wcfxs0`
+ 		(poor man's /proc emulation)
+ 
+ 22/07/2004 Alexander Timoshenko &lt;<A HREF="https://lists.berlios.de/mailman/listinfo/zaptel-bsd-svn">gonzo at portaone.com</A>&gt;
+
+Modified: trunk/wcfxs/wcfxs.c
+===================================================================
+--- trunk/wcfxs/wcfxs.c	2004-07-23 11:42:21 UTC (rev 15)
++++ trunk/wcfxs/wcfxs.c	2004-07-23 13:15:30 UTC (rev 16)
+@@ -279,6 +279,7 @@
+ static struct wcfxs_desc wcfxse = { &quot;Wildcard TDM400P REV E/F&quot;, 0 };
+ 
+ static void wcfxs_release(struct wcfxs_softc *sc);
++void wcfxs_generate_description(struct wcfxs_softc * sc);
+ 
+ static int debug = 0;
+ static int robust = 0;
+@@ -395,6 +396,42 @@
+ #endif
+ 
+ 
++void wcfxs_generate_description(struct wcfxs_softc * sc)
++{
++	int x;
++	/* prepare description */
++
++	/* 80(name) + 40(description) + 25 per port description 
++	 * + 20 just in case
++	 */
++	if(!card_configuration)
++		card_configuration = malloc(80 + 40 +  sc-&gt;cards*25 + 20, 
++						M_TDM, M_NOWAIT);
++	snprintf(card_configuration, 120 + sc-&gt;cards*25, &quot;%s\n%s\n&quot;, 
++					sc-&gt;span.name, sc-&gt;span.desc);
++	for( x = 0; x &lt; sc-&gt;cards; x++)
++	{
++			if(sc-&gt;cardflag &amp; (1 &lt;&lt; x))
++			{
++
++				if(sc-&gt;chans[x].sigcap &amp; ZT_SIG_FXSKS) 	
++					snprintf(card_configuration, 120 + sc-&gt;cards*25, 
++									&quot;%sPort #%d -- FXO [%s]\n&quot;,
++									card_configuration, x+1, sc-&gt;mod.fxo.battery[x] ? &quot;on&quot; : &quot;off&quot;);
++				else
++					snprintf(card_configuration, 120 + sc-&gt;cards*25, 
++									&quot;%sPort #%d -- FXS\n&quot;,
++									card_configuration, x+1);
++			} else
++			{
++					snprintf(card_configuration, 120 + sc-&gt;cards*25, 
++									&quot;%sPort #%d -- None\n&quot;,
++									card_configuration, x+1);
++			}
++	}
++}
++
++
+ static __inline void wcfxs_receiveprep(struct wcfxs_softc *sc, unsigned char ints)
+ {
+ 	volatile unsigned int *readchunk;
+@@ -1403,8 +1440,9 @@
+ #endif
+ 		if (sc-&gt;mod.fxo.battery[card] &amp;&amp; !sc-&gt;mod.fxo.battdebounce[card]) {
+ 			if (debug)
+-				printf(&quot;NO BATTERY!\n&quot;);
++				printf(&quot;[%d] NO BATTERY!\n&quot;, card);
+ 			sc-&gt;mod.fxo.battery[card] =  0;
++			wcfxs_generate_description(sc);
+ #ifdef	JAPAN
+ 			if ((!sc-&gt;ohdebounce) &amp;&amp; sc-&gt;offhook) {
+ 				zt_hooksig(&amp;sc-&gt;chans[card], ZT_RXSIG_ONHOOK);
+@@ -1423,7 +1461,7 @@
+ 	} else if (abs(b) &gt; BATT_THRESH) {
+ 		if (!sc-&gt;mod.fxo.battery[card] &amp;&amp; !sc-&gt;mod.fxo.battdebounce[card]) {
+ 			if (debug)
+-				printf(&quot;BATTERY!\n&quot;);
++				printf(&quot;[%d] BATTERY!\n&quot;, card);
+ #ifdef	ZERO_BATT_RING
+ 			if (sc-&gt;onhook) {
+ 				sc-&gt;onhook = 0;
+@@ -1437,6 +1475,7 @@
+ 			sc-&gt;mod.fxo.battery[card] = 1;
+ 			sc-&gt;mod.fxo.nobatttimer[card] = 0;
+ 			sc-&gt;mod.fxo.battdebounce[card] = BATT_DEBOUNCE;
++			wcfxs_generate_description(sc);
+ 		} else if (sc-&gt;mod.fxo.battery[card])
+ 			sc-&gt;mod.fxo.battdebounce[card] = BATT_DEBOUNCE;
+ 	} else {
+@@ -2207,35 +2246,7 @@
+ 
+ 	wcfxs_post_initialize(sc);
+ 
+-	/* prepare description */
+-
+-	/* 80(name) + 40(description) + 25 per port description 
+-	 * + 20 just in case
+-	 */
+-	card_configuration = malloc(80 + 40 +  sc-&gt;cards*25 + 20, M_TDM, M_NOWAIT);
+-	snprintf(card_configuration, 120 + sc-&gt;cards*25, &quot;%s\n%s\n&quot;, 
+-					sc-&gt;span.name, sc-&gt;span.desc);
+-	for( x = 0; x &lt; sc-&gt;cards; x++)
+-	{
+-			if(sc-&gt;cardflag &amp; (1 &lt;&lt; x))
+-			{
+-
+-				if(sc-&gt;chans[x].sigcap &amp; ZT_SIG_FXSKS) 	
+-					snprintf(card_configuration, 120 + sc-&gt;cards*25, 
+-									&quot;%sPort #%d -- FXO\n&quot;,
+-									card_configuration, x+1);
+-				else
+-					snprintf(card_configuration, 120 + sc-&gt;cards*25, 
+-									&quot;%sPort #%d -- FXS\n&quot;,
+-									card_configuration, x+1);
+-			} else
+-			{
+-					snprintf(card_configuration, 120 + sc-&gt;cards*25, 
+-									&quot;%sPort #%d -- None\n&quot;,
+-									card_configuration, x+1);
+-			}
+-	}
+-
++	wcfxs_generate_description(sc);
+ 	/* Initialize Write/Buffers to all blank data */
+ 	memset((void *)(sc-&gt;wc_ldata.wc_writechunk), 0, 
+ 			ZT_MAX_CHUNKSIZE * 2 * 2 * 2 * 4);
+@@ -2249,11 +2260,6 @@
+ 	/* Start DMA */
+ 	wcfxs_start_dma(sc);
+ 
+-	/* init sysctl oid's */
+-	wcfxs_sysctl_init();
+-
+-
+-
+ 	printf(&quot;Found a Wildcard TDM: %s (%d modules)\n&quot;, sc-&gt;variety, sc-&gt;cards);
+ 	return 0;
+ fail:
+@@ -2322,8 +2328,6 @@
+ 		else
+ 			sc-&gt;dead = 1;
+ 
+-		wcfxs_sysctl_destroy();
+-
+ 		if(sc-&gt;d)
+ 			destroy_dev(sc-&gt;d);
+ 
+
+
+</PRE>
+
+<!--endarticle-->
+    <HR>
+    <P><UL>
+        <!--threads-->
+	<LI>Previous message: <A HREF="000009.html">[Zaptel-bsd-svn] r15 - in trunk: . wcfxo
+</A></li>
+	<LI>Next message: <A HREF="000011.html">[Zaptel-bsd-svn] r17 - in trunk: . zaptel
+</A></li>
+         <LI> <B>Messages sorted by:</B> 
+              <a href="date.html#10">[ date ]</a>
+              <a href="thread.html#10">[ thread ]</a>
+              <a href="subject.html#10">[ subject ]</a>
+              <a href="author.html#10">[ author ]</a>
+         </LI>
+       </UL>
+
+<hr>
+<a href="https://lists.berlios.de/mailman/listinfo/zaptel-bsd-svn">More information about the Zaptel-bsd-svn
+mailing list</a><br>
+</body></html>
